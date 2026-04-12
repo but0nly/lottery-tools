@@ -148,36 +148,43 @@ export default function SavedPage() {
                   const isInCart = inCartKeys.has(key);
 
                   return (
-                    <div key={record.id} className="group bg-white/70 backdrop-blur-xl p-5 md:p-8 rounded-[32px] border border-white shadow-xl shadow-slate-200/50 hover:shadow-2xl hover:shadow-indigo-100 md:hover:-translate-y-1 transition-all flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative overflow-hidden">
-                      <div className="flex flex-wrap gap-2.5 items-center">
-                        {record.reds.split(',').map((n, i) => (
-                          <span key={`r${i}`} className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-red-500 text-white flex items-center justify-center text-base md:text-xl font-black shadow-lg shadow-red-100 transition-transform md:group-hover:scale-110">
-                            {n}
-                          </span>
-                        ))}
-                        <div className="w-px h-10 bg-slate-200 mx-2 hidden lg:block"></div>
-                        {record.blues.split(',').map((n, i) => (
-                          <span key={`b${i}`} className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-blue-500 text-white flex items-center justify-center text-base md:text-xl font-black shadow-lg shadow-blue-100 transition-transform md:group-hover:scale-110">
-                            {n}
-                          </span>
-                        ))}
+                    <div key={record.id} className="group bg-white/70 backdrop-blur-xl p-4 md:p-5 rounded-[24px] border border-white shadow-xl shadow-slate-200/50 hover:shadow-2xl hover:shadow-indigo-100 transition-all flex flex-col gap-3 relative overflow-hidden">
+                      {/* 第一行：号码组 (单行排列，支持横滑) */}
+                      <div className="flex-1 min-w-0 overflow-x-auto no-scrollbar pb-1">
+                        <div className="flex flex-nowrap gap-2 items-center">
+                          {record.reds.split(',').map((n, i) => (
+                            <span key={`r${i}`} className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-red-500 text-white flex-shrink-0 flex items-center justify-center text-sm md:text-base font-black shadow-md shadow-red-100 transition-transform group-hover:scale-105">
+                              {n}
+                            </span>
+                          ))}
+                          <div className="w-px h-6 bg-slate-200 mx-1 flex-shrink-0"></div>
+                          {record.blues.split(',').map((n, i) => (
+                            <span key={`b${i}`} className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-blue-500 text-white flex-shrink-0 flex items-center justify-center text-sm md:text-base font-black shadow-md shadow-blue-100 transition-transform group-hover:scale-105">
+                              {n}
+                            </span>
+                          ))}
+                        </div>
                       </div>
 
-                      <div className="flex items-center justify-between lg:justify-end gap-6 text-sm border-t lg:border-t-0 pt-5 lg:pt-0 border-slate-50">
-                        <div className="flex flex-col items-start lg:items-end gap-1.5">
-                          <div className="flex items-center gap-2 px-3 py-1 bg-slate-50 rounded-full border border-slate-100">
+                      {/* 分割线 */}
+                      <div className="h-px bg-slate-100/50 mx-1"></div>
+
+                      {/* 第二行：信息与操作 */}
+                      <div className="flex items-center justify-between text-sm">
+                        <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 rounded-lg border border-slate-100">
                             {record.toolUsed === 'REDUCER' ? (
-                              <Calculator className="w-4 h-4 text-emerald-500" />
+                              <Calculator className="w-3.5 h-3.5 text-emerald-500" />
                             ) : record.toolUsed === 'RANDOM' ? (
-                              <Shuffle className="w-4 h-4 text-orange-500" />
+                              <Shuffle className="w-3.5 h-3.5 text-orange-500" />
                             ) : (
-                              <History className="w-4 h-4 text-rose-500" />
+                              <History className="w-3.5 h-3.5 text-rose-500" />
                             )}
-                            <span className="text-xs font-black text-slate-600">
+                            <span className="text-[11px] font-black text-slate-600">
                               {record.toolUsed === 'REDUCER' ? '缩水模式' : record.toolUsed === 'RANDOM' ? '随机生成' : '反向分析'}
                             </span>
                           </div>
-                          <div className="text-[10px] text-slate-400 font-black uppercase tracking-widest px-1">
+                          <div className="text-[10px] text-slate-400 font-black uppercase tracking-widest hidden sm:block">
                             {new Date(record.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           </div>
                         </div>
@@ -207,21 +214,22 @@ export default function SavedPage() {
                                 }, 600);
                               }
                             }}
-                            className={`p-3.5 rounded-[20px] transition-all shadow-lg ${
+                            className={`p-2.5 rounded-xl transition-all shadow-sm ${
                               isInCart 
                                 ? 'text-emerald-600 bg-emerald-50 shadow-inner ring-1 ring-emerald-200' 
                                 : 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 bg-white border border-slate-100 shadow-slate-100'
                             }`}
+                            title={isInCart ? "取消加购" : "加入购物车"}
                           >
-                            {isInCart ? <CheckCircle2 className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
+                            {isInCart ? <CheckCircle2 className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
                           </button>
                           
                           <button 
                             onClick={() => handleDelete(record.id!)}
-                            className="p-3.5 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-[20px] transition-all"
+                            className="p-2.5 text-slate-300 hover:text-rose-500 hover:bg-rose-50 bg-white border border-slate-100 rounded-xl transition-all shadow-sm"
                             title="永久删除"
                           >
-                            <Trash2 className="w-5 h-5" />
+                            <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
                       </div>

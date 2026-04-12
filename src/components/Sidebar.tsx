@@ -122,10 +122,10 @@ export function MobileNav() {
                 key={item.href} 
                 href={item.href} 
                 onClick={handleDiceClick}
-                className="relative -top-6 flex flex-col items-center justify-center transition-transform active:scale-90"
+                className="relative -top-5 flex flex-col items-center justify-center transition-transform active:scale-90"
               >
-                <div className={`w-[72px] h-[72px] rounded-3xl flex items-center justify-center shadow-2xl transition-all ring-4 ring-white ${isActive ? 'bg-orange-500 shadow-orange-200' : 'bg-slate-950 shadow-slate-900/40'}`}>
-                  <item.icon className={`w-9 h-9 text-white ${isShaking ? 'animate-shake' : ''}`} />
+                <div className={`w-[60px] h-[60px] rounded-2xl flex items-center justify-center shadow-2xl transition-all ring-4 ring-white ${isActive ? 'bg-orange-500 shadow-orange-200' : 'bg-slate-950 shadow-slate-900/40'}`}>
+                  <item.icon className={`w-7 h-7 text-white ${isShaking ? 'animate-shake' : ''}`} />
                 </div>
                 <span className={`text-[10px] mt-2 font-black tracking-widest uppercase transition-colors ${isActive ? 'text-orange-600' : 'text-slate-500'}`}>
                   {item.label}

@@ -287,8 +287,8 @@ export function generateGameTheoryCombination(
   const allBlues = Array.from({ length: maxBlue }, (_, i) => i + 1);
 
   // We add some randomness to avoid giving the exact same "unpopular" set to everyone
-  const sortedReds = allReds.sort((a, b) => (getRedScore(a) + Math.random() * 0.2) - (getRedScore(b) + Math.random() * 0.2));
-  const sortedBlues = allBlues.sort((a, b) => (getBlueScore(a) + Math.random() * 0.2) - (getBlueScore(b) + Math.random() * 0.2));
+  const sortedReds = allReds.sort((a, b) => (getRedScore(a) + Math.random() * 1.5) - (getRedScore(b) + Math.random() * 1.5));
+  const sortedBlues = allBlues.sort((a, b) => (getBlueScore(a) + Math.random() * 1.5) - (getBlueScore(b) + Math.random() * 1.5));
 
   return {
     reds: sortedReds.slice(0, reqRed).sort((a, b) => a - b),

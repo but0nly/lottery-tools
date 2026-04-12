@@ -338,20 +338,21 @@ export default function RandomPage() {
                 const isInCart = inCartKeys.has(key);
 
                 return (
-                  <div key={i} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-slate-50/50 border border-white rounded-[24px] transition-all hover:bg-white hover:shadow-xl hover:shadow-slate-100 group relative overflow-hidden">
-                    <div className="flex gap-4 items-center min-w-0">
-                      <span className="w-6 h-6 rounded-lg bg-white shadow-sm text-slate-400 text-[10px] flex-shrink-0 flex items-center justify-center font-black border border-slate-100">
+                  <div key={i} className="flex flex-col gap-2 p-3 bg-slate-50/50 border border-white rounded-2xl transition-all hover:bg-white hover:shadow-xl hover:shadow-slate-100 group relative overflow-hidden">
+                    {/* 第一行：序号与号码 (单行排列，支持横滑) */}
+                    <div className="flex gap-3 items-center min-w-0">
+                      <span className="w-5 h-5 rounded-md bg-white shadow-sm text-slate-400 text-[10px] flex-shrink-0 flex items-center justify-center font-black border border-slate-100">
                         {i + 1}
                       </span>
                       
-                      <div className="flex-1 min-w-0">
-                        <div className="flex flex-wrap gap-2 items-center">
+                      <div className="flex-1 min-w-0 overflow-x-auto no-scrollbar pb-0.5">
+                        <div className="flex flex-nowrap gap-1.5 items-center">
                           {r.reds.map(n => {
                             const isFixed = fixedReds.includes(n);
                             return (
                               <span 
                                 key={`r${n}`} 
-                                className={`w-9 h-9 md:w-10 md:h-10 rounded-full flex items-center justify-center text-xs md:text-sm font-black shadow-md transition-all group-hover:scale-105 ${
+                                className={`w-7 h-7 md:w-8 md:h-8 rounded-full flex-shrink-0 flex items-center justify-center text-[10px] md:text-xs font-black shadow-md transition-all group-hover:scale-105 ${
                                   isFixed 
                                     ? 'bg-red-700 text-white ring-2 ring-red-200 ring-offset-2' 
                                     : 'bg-red-500 text-white'
@@ -361,13 +362,13 @@ export default function RandomPage() {
                               </span>
                             );
                           })}
-                          <div className="w-px h-6 bg-slate-200 mx-1"></div>
+                          <div className="w-px h-4 bg-slate-200 mx-0.5 flex-shrink-0"></div>
                           {r.blues.map(n => {
                             const isFixed = fixedBlues.includes(n);
                             return (
                               <span 
                                 key={`b${n}`} 
-                                className={`w-9 h-9 md:w-10 md:h-10 rounded-full flex items-center justify-center text-xs md:text-sm font-black shadow-md transition-all group-hover:scale-105 ${
+                                className={`w-7 h-7 md:w-8 md:h-8 rounded-full flex-shrink-0 flex items-center justify-center text-[10px] md:text-xs font-black shadow-md transition-all group-hover:scale-105 ${
                                   isFixed 
                                     ? 'bg-blue-700 text-white ring-2 ring-blue-200 ring-offset-2' 
                                     : 'bg-blue-500 text-white'
@@ -381,6 +382,10 @@ export default function RandomPage() {
                       </div>
                     </div>
                     
+                    {/* 分割线 */}
+                    <div className="h-px bg-slate-100/50 mx-1"></div>
+
+                    {/* 第二行：操作按钮 */}
                     <div className="flex items-center justify-end gap-2">
                       <button 
                         onClick={async () => {
@@ -398,9 +403,10 @@ export default function RandomPage() {
                           }
                           loadExistingStates();
                         }}
-                        className={`p-3 rounded-xl transition-all ${isSaved ? 'text-indigo-600 bg-indigo-50 shadow-inner' : 'text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 bg-white shadow-sm border border-slate-100'}`}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all ${isSaved ? 'text-indigo-600 bg-indigo-50 shadow-inner' : 'text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 bg-white shadow-sm border border-slate-100'}`}
                       >
-                        <Bookmark className={`w-4 h-4 ${isSaved ? 'fill-current' : ''}`} />
+                        <Bookmark className={`w-3.5 h-3.5 ${isSaved ? 'fill-current' : ''}`} />
+                        {isSaved ? '已收藏' : '收藏'}
                       </button>
                       <button 
                         onClick={async (e) => {
@@ -424,9 +430,10 @@ export default function RandomPage() {
                             }, 600);
                           }
                         }}
-                        className={`p-3 rounded-xl transition-all ${isInCart ? 'text-orange-600 bg-orange-50 shadow-inner' : 'text-slate-400 hover:text-orange-600 hover:bg-orange-50 bg-white shadow-sm border border-slate-100'}`}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all ${isInCart ? 'text-orange-600 bg-orange-50 shadow-inner' : 'text-slate-500 hover:text-orange-600 hover:bg-orange-50 bg-white shadow-sm border border-slate-100'}`}
                       >
-                        {isInCart ? <CheckCircle2 className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+                        {isInCart ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
+                        {isInCart ? '已加购' : '加购'}
                       </button>
                     </div>
                   </div>

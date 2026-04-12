@@ -231,7 +231,7 @@ export default function ReversePage() {
           </div>
 
           {mode === 'FREQUENCY' && (
-            <div className="bg-white/70 backdrop-blur-xl p-6 rounded-[32px] shadow-xl shadow-slate-200/50 border border-white animate-in fade-in slide-in-from-right-4 duration-500">
+            <div className="bg-white/70 backdrop-blur-xl p-6 rounded-[32px] shadow-xl shadow-slate-200/50 border border-white">
               <label className="block text-sm font-black text-slate-400 mb-4 uppercase tracking-widest">分析样本量</label>
               <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
                 {[30, 50, 100, 200, 500].map((size) => (
@@ -252,7 +252,7 @@ export default function ReversePage() {
           )}
 
           {mode === 'GAME_THEORY' && (
-            <div className="bg-white/70 backdrop-blur-xl p-6 rounded-[32px] shadow-xl shadow-slate-200/50 border border-white animate-in fade-in zoom-in duration-500">
+            <div className="bg-white/70 backdrop-blur-xl p-6 rounded-[32px] shadow-xl shadow-slate-200/50 border border-white">
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-2">
                   <Sliders className="w-5 h-5 text-rose-500" />
@@ -273,7 +273,7 @@ export default function ReversePage() {
               </div>
 
               {showAlgorithmTip && (
-                <div className="text-[11px] md:text-xs text-rose-800 mb-6 bg-rose-50/80 p-4 rounded-2xl border border-rose-100 flex items-start gap-2 animate-in fade-in slide-in-from-top-2 duration-300 leading-relaxed shadow-inner">
+                <div className="text-[11px] md:text-xs text-rose-800 mb-6 bg-rose-50/80 p-4 rounded-2xl border border-rose-100 flex items-start gap-2 leading-relaxed shadow-inner">
                   <Info className="w-4 h-4 mt-0.5 flex-shrink-0 text-rose-500" />
                   权重越高表示该特征在选号时“扣分”越多。算法会寻找权重总分最低的号码组合（即最冷门、最反直觉的方案）。
                 </div>
@@ -354,40 +354,40 @@ export default function ReversePage() {
                 </div>
               </div>
             ) : (
-              <div className="space-y-10">
-                <div className="p-8 bg-slate-50/50 border-2 border-white rounded-[40px] transition-all hover:bg-white hover:shadow-2xl hover:shadow-slate-100 group">
-                  <div className="flex flex-col gap-10">
-                    <div className="flex flex-wrap justify-center gap-3 md:gap-4">
+              <div className="space-y-6">
+                <div className="p-6 bg-slate-50/50 border-2 border-white rounded-[32px] group">
+                  <div className="flex flex-col gap-6">
+                    <div className="flex flex-wrap justify-center gap-2 md:gap-3">
                       {result.reds.map(n => (
-                        <span key={`r${n}`} className="w-12 h-12 md:w-16 md:h-16 rounded-full bg-red-500 text-white flex items-center justify-center text-lg md:text-2xl font-black shadow-lg shadow-red-100 transition-transform group-hover:scale-110">
+                        <span key={`r${n}`} className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-red-500 text-white flex items-center justify-center text-base md:text-xl font-black shadow-lg shadow-red-100">
                           {n.toString().padStart(2, '0')}
                         </span>
                       ))}
-                      <div className="w-px h-12 md:h-16 bg-slate-200 mx-2 self-center"></div>
+                      <div className="w-px h-10 md:h-12 bg-slate-200 mx-1 md:mx-2 self-center"></div>
                       {result.blues.map(n => (
-                        <span key={`b${n}`} className="w-12 h-12 md:w-16 md:h-16 rounded-full bg-blue-500 text-white flex items-center justify-center text-lg md:text-2xl font-black shadow-lg shadow-blue-100 transition-transform group-hover:scale-110">
+                        <span key={`b${n}`} className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-blue-500 text-white flex items-center justify-center text-base md:text-xl font-black shadow-lg shadow-blue-100">
                           {n.toString().padStart(2, '0')}
                         </span>
                       ))}
                     </div>
                     
-                    <div className="flex items-center justify-center gap-4">
+                    <div className="flex items-center justify-center gap-3">
                       <button 
                         onClick={handleSave}
-                        className={`flex items-center gap-3 px-6 py-3.5 rounded-2xl text-sm font-black transition-all shadow-lg ${
+                        className={`flex items-center gap-2.5 px-5 py-3 rounded-2xl text-xs md:text-sm font-black transition-all shadow-lg ${
                           isSaved ? 'text-indigo-600 bg-indigo-50 shadow-inner ring-1 ring-indigo-200' : 'text-slate-600 bg-white border border-slate-100 hover:bg-slate-50 shadow-slate-100'
                         }`}
                       >
-                        <Bookmark className={`w-5 h-5 ${isSaved ? 'fill-current' : ''}`} />
+                        <Bookmark className={`w-4 h-4 md:w-5 md:h-5 ${isSaved ? 'fill-current' : ''}`} />
                         {isSaved ? '已收藏' : '加入收藏'}
                       </button>
                       <button 
                         onClick={(e) => handleAddToCart(e)}
-                        className={`flex items-center gap-3 px-6 py-3.5 rounded-2xl text-sm font-black transition-all shadow-lg ${
+                        className={`flex items-center gap-2.5 px-5 py-3 rounded-2xl text-xs md:text-sm font-black transition-all shadow-lg ${
                           isInCart ? 'text-orange-600 bg-orange-50 shadow-inner ring-1 ring-orange-200' : 'text-white bg-slate-900 hover:bg-slate-800 shadow-slate-200'
                         }`}
                       >
-                        {isInCart ? <CheckCircle2 className="w-5 h-5" /> : <ShoppingCart className="w-5 h-5" />}
+                        {isInCart ? <CheckCircle2 className="w-4 h-4 md:w-5 md:h-5" /> : <ShoppingCart className="w-4 h-4 md:w-5 md:h-5" />}
                         {isInCart ? '已加购' : '加购物车'}
                       </button>
                     </div>
