@@ -8,6 +8,9 @@ import { refreshCart } from '@/components/Cart';
 import { toast } from '@/lib/notification';
 import { Save, CheckCircle2, Loader2, Plus, ShoppingCart, Bookmark, Shuffle, Trash2 } from 'lucide-react';
 
+import { LotteryTabSwitcher } from '@/components/LotteryTabSwitcher';
+import { triggerFlyToCart } from '@/components/FlyToCartAnimation';
+
 export default function RandomPage() {
   const [type, setType] = useState<LotteryType>('SSQ');
   const [reds, setReds] = useState<number[]>([]);
@@ -96,7 +99,8 @@ export default function RandomPage() {
     loadExistingStates();
   };
 
-  const handleAddToCartAll = async () => {
+  const handleAddToCartAll = async (e: React.MouseEvent) => {
+    triggerFlyToCart(e, 'bg-orange-500');
     let saved = 0;
     let skipped = 0;
     for (const r of results) {
@@ -118,48 +122,48 @@ export default function RandomPage() {
   };
 
   return (
-    <div className="p-4 md:p-8 max-w-6xl mx-auto pb-24 md:pb-8">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-        <h1 className="text-2xl md:text-3xl font-bold text-slate-900 flex items-center gap-3">
-          <Shuffle className="w-8 h-8 text-orange-500" />
-          智能随机生成器
-        </h1>
-        <button 
-          onClick={handleClear}
-          className="flex items-center justify-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-lg text-sm font-medium hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 transition-all shadow-sm"
-        >
-          <Trash2 className="w-4 h-4" />
-          清空重选
-        </button>
+    <div className="relative min-h-full p-4 md:p-8 max-w-7xl mx-auto pb-32 md:pb-8 overflow-hidden">
+      {/* Background Blobs */}
+      <div className="absolute top-0 right-0 -z-10 w-96 h-96 bg-orange-50 rounded-full blur-3xl opacity-50 -mr-24 -mt-24" />
+      
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10 md:pr-20">
+        <div className="flex flex-col gap-2">
+          <h1 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight flex items-center gap-3">
+            <div className="w-12 h-12 bg-gradient-to-br from-orange-400 to-amber-500 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-orange-200">
+              <Shuffle className="w-7 h-7" />
+            </div>
+            智能随机选号
+          </h1>
+          <p className="text-slate-500 text-sm md:text-base ml-1">支持“定胆”补全，在概率中寻找惊喜</p>
+        </div>
+        
+        <div className="flex gap-3">
+          <button 
+            onClick={handleClear}
+            className="flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-3 bg-white hover:bg-rose-50 border border-slate-200 hover:border-rose-200 text-slate-600 hover:text-rose-600 rounded-2xl text-sm font-bold transition-all shadow-sm active:scale-[0.98]"
+          >
+            <Trash2 className="w-4 h-4" />
+            清空重置
+          </button>
+        </div>
       </div>
       
-      <div className="flex flex-wrap gap-2 md:gap-4 mb-8">
-        <button 
-          onClick={() => { setType('SSQ'); handleClear(); }}
-          className={`px-4 md:px-6 py-2 rounded-lg font-medium transition-colors text-sm md:text-base ${type === 'SSQ' ? 'bg-slate-900 text-white shadow-md' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
-        >
-          双色球 (SSQ)
-        </button>
-        <button 
-          onClick={() => { setType('DLT'); handleClear(); }}
-          className={`px-4 md:px-6 py-2 rounded-lg font-medium transition-colors text-sm md:text-base ${type === 'DLT' ? 'bg-slate-900 text-white shadow-md' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
-        >
-          大乐透 (DLT)
-        </button>
+      <div className="mb-10 flex justify-center md:justify-start">
+        <LotteryTabSwitcher 
+          activeTab={type} 
+          onTabChange={(newType) => { setType(newType); handleClear(); }} 
+        />
       </div>
 
-      <div className="grid lg:grid-cols-2 gap-4 md:gap-8 min-w-0">
-        <div className="space-y-4 md:space-y-6 min-w-0">
-          <div className="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-slate-200">
-            <div className="mb-4">
-              <h3 className="text-base md:text-lg font-semibold flex items-center justify-between">
+      <div className="grid lg:grid-cols-2 gap-6 md:gap-8 min-w-0">
+        <div className="space-y-6 min-w-0">
+          <div className="bg-white/70 backdrop-blur-xl p-6 rounded-[32px] shadow-xl shadow-slate-200/50 border border-white">
+            <div className="mb-6">
+              <h3 className="text-lg font-bold flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-red-500"></span>
-                  设置红球胆码 ({fixedReds.length})
+                  <span className="w-2.5 h-2.5 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]"></span>
+                  设置红球胆码 <span className="text-slate-400 font-medium ml-1">({fixedReds.length})</span>
                 </div>
-                <span className="text-[10px] md:text-xs text-slate-400 font-normal">
-                  点击数字设为胆码 (固定不变)
-                </span>
               </h3>
             </div>
             <BallPicker 
@@ -172,16 +176,13 @@ export default function RandomPage() {
             />
           </div>
 
-          <div className="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-slate-200">
-            <div className="mb-4">
-              <h3 className="text-base md:text-lg font-semibold flex items-center justify-between">
+          <div className="bg-white/70 backdrop-blur-xl p-6 rounded-[32px] shadow-xl shadow-slate-200/50 border border-white">
+            <div className="mb-6">
+              <h3 className="text-lg font-bold flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-                  设置蓝球胆码 ({fixedBlues.length})
+                  <span className="w-2.5 h-2.5 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]"></span>
+                  设置蓝球胆码 <span className="text-slate-400 font-medium ml-1">({fixedBlues.length})</span>
                 </div>
-                <span className="text-[10px] md:text-xs text-slate-400 font-normal">
-                  点击数字设为胆码 (固定不变)
-                </span>
               </h3>
             </div>
             <BallPicker 
@@ -194,89 +195,89 @@ export default function RandomPage() {
             />
           </div>
 
-          <div className="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-slate-200">
-            <h3 className="text-base md:text-lg font-semibold mb-4">生成注数</h3>
-            <div className="flex flex-wrap gap-2 mb-4">
+          <div className="bg-white/70 backdrop-blur-xl p-6 rounded-[32px] shadow-xl shadow-slate-200/50 border border-white">
+            <h3 className="text-lg font-bold mb-6">生成注数</h3>
+            <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-6">
               {[1, 5, 10, 20, 50, 100].map((count) => (
                 <button
                   key={count}
                   onClick={() => setBetCount(count)}
-                  className={`flex-1 min-w-[60px] py-2 rounded-xl border font-bold transition-all ${
+                  className={`py-2.5 rounded-xl border-2 font-black transition-all text-sm ${
                     betCount === count
-                      ? 'border-orange-500 bg-orange-50 text-orange-700 ring-1 ring-orange-500'
-                      : 'border-slate-200 hover:border-slate-300 bg-slate-50 text-slate-600'
+                      ? 'border-orange-500 bg-orange-50 text-orange-700 shadow-md shadow-orange-100/50'
+                      : 'border-slate-100 hover:border-slate-200 bg-slate-50/50 text-slate-600'
                   }`}
                 >
-                  {count}注
+                  {count}
                 </button>
               ))}
             </div>
-            <div className="relative">
+            <div className="relative group">
               <input 
                 type="number" 
                 value={betCount}
                 onChange={(e) => setBetCount(parseInt(e.target.value) || 0)}
                 placeholder="自定义注数 (1-1000)"
-                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-all text-sm outline-none"
+                className="w-full px-5 py-4 rounded-2xl border-2 border-slate-100 bg-slate-50/50 focus:border-orange-500 focus:bg-white focus:ring-4 focus:ring-orange-100 outline-none transition-all font-bold shadow-inner"
               />
-              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 text-sm">注</span>
+              <span className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-400 font-bold">注</span>
             </div>
           </div>
 
           <button 
             onClick={handleGenerate}
             disabled={isGenerating}
-            className="w-full py-4 bg-orange-500 hover:bg-orange-600 disabled:bg-slate-300 text-white font-bold rounded-xl shadow-lg shadow-orange-100 transition-all text-lg flex items-center justify-center gap-2 active:scale-[0.98]"
+            className="w-full py-5 bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 disabled:from-slate-300 disabled:to-slate-400 text-white font-black rounded-3xl shadow-xl shadow-orange-200 transition-all text-xl flex items-center justify-center gap-3 active:scale-[0.98]"
           >
             {isGenerating ? (
               <>
-                <Loader2 className="w-5 h-5 animate-spin" />
+                <Loader2 className="w-6 h-6 animate-spin" />
                 正在生成随机组合...
               </>
             ) : (
               <>
-                <Shuffle className="w-5 h-5" />
+                <Shuffle className="w-6 h-6" />
                 立即随机生成 {betCount} 注
               </>
             )}
           </button>
         </div>
 
-        <div className="bg-white p-3 md:p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col h-full max-h-[1000px] min-w-0">
-          <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-3 mb-4">
-            <h3 className="text-lg md:text-xl font-bold text-slate-900 flex items-center gap-2">
+        <div className="bg-white/70 backdrop-blur-xl p-4 md:p-8 rounded-[40px] shadow-2xl shadow-slate-200/60 border border-white flex flex-col h-full max-h-[1000px] min-w-0">
+          <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-8">
+            <h3 className="text-xl md:text-2xl font-black text-slate-900 flex items-center gap-3">
               生成结果 
-              <span className="text-sm font-normal text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">{results.length} 注</span>
+              <span className="text-xs font-bold text-orange-600 bg-orange-50 px-3 py-1 rounded-full border border-orange-100">{results.length} 注</span>
             </h3>
             {results.length > 0 && (
-              <div className="grid grid-cols-2 gap-2">
+              <div className="flex gap-2">
                 <button 
-                  onClick={handleAddToCartAll}
-                  className="flex items-center justify-center gap-1.5 px-3 py-2 bg-orange-600 text-white rounded-lg text-xs font-bold hover:bg-orange-700 transition-colors shadow-sm"
+                  onClick={(e) => handleAddToCartAll(e)}
+                  className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-orange-500 text-white rounded-xl text-xs font-black hover:bg-orange-600 transition-all shadow-lg shadow-orange-100 active:scale-95"
                 >
                   <ShoppingCart className="w-3.5 h-3.5" />
                   全部加购
                 </button>
                 <button 
                   onClick={handleSaveAll}
-                  className="flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-900 text-white rounded-lg text-xs font-bold hover:bg-slate-800 transition-colors shadow-sm"
+                  className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-black hover:bg-slate-800 transition-all shadow-lg shadow-slate-200 active:scale-95"
                 >
-                  <Save className="w-3.5 h-3.5" />
+                  <Bookmark className="w-3.5 h-3.5" />
                   全部收藏
                 </button>
               </div>
             )}
           </div>
 
-          <div className="flex-1 overflow-y-auto pr-2 space-y-3 custom-scrollbar">
+          <div className="flex-1 overflow-y-auto pr-2 space-y-4 custom-scrollbar">
             {results.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-slate-400 space-y-4">
-                <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center">
-                  <Shuffle className="w-8 h-8 text-slate-200" />
+              <div className="h-full flex flex-col items-center justify-center text-slate-400 space-y-6">
+                <div className="w-24 h-24 bg-slate-50/50 rounded-full flex items-center justify-center shadow-inner">
+                  <Shuffle className="w-10 h-10 text-slate-200" />
                 </div>
                 <div className="text-center">
-                  <p className="font-medium text-slate-500">待生成号码</p>
-                  <p className="text-sm">在左侧设置胆码并选择注数后点击生成</p>
+                  <p className="font-black text-slate-400 uppercase tracking-widest text-sm mb-2">Awaiting Generation</p>
+                  <p className="text-sm text-slate-500 font-medium">在左侧设置胆码并选择注数后点击生成</p>
                 </div>
               </div>
             ) : (
@@ -288,39 +289,40 @@ export default function RandomPage() {
                 const isInCart = inCartKeys.has(key);
 
                 return (
-                  <div key={i} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-2.5 bg-slate-50 border border-slate-100 rounded-xl transition-all hover:bg-white hover:shadow-md group">
-                    <div className="flex gap-2 items-start min-w-0">
-                      <span className="w-5 h-5 rounded-md bg-slate-200 text-slate-500 text-[10px] flex-shrink-0 flex items-center justify-center font-bold mt-1.5 sm:mt-1">
+                  <div key={i} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-slate-50/50 border border-white rounded-[24px] transition-all hover:bg-white hover:shadow-xl hover:shadow-slate-100 group relative overflow-hidden">
+                    <div className="flex gap-4 items-center min-w-0">
+                      <span className="w-6 h-6 rounded-lg bg-white shadow-sm text-slate-400 text-[10px] flex-shrink-0 flex items-center justify-center font-black border border-slate-100">
                         {i + 1}
                       </span>
                       
                       <div className="flex-1 min-w-0">
-                        <div className="grid grid-cols-7 sm:flex sm:flex-wrap gap-1.5 items-center">
+                        <div className="flex flex-wrap gap-2 items-center">
                           {r.reds.map(n => {
                             const isFixed = fixedReds.includes(n);
                             return (
                               <span 
                                 key={`r${n}`} 
-                                className={`aspect-square w-full sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[10px] sm:text-sm font-bold shadow-sm transition-transform ${
+                                className={`w-9 h-9 md:w-10 md:h-10 rounded-full flex items-center justify-center text-xs md:text-sm font-black shadow-md transition-all group-hover:scale-105 ${
                                   isFixed 
-                                    ? 'bg-red-700 text-white ring-2 ring-red-200 ring-offset-1' 
+                                    ? 'bg-red-700 text-white ring-2 ring-red-200 ring-offset-2' 
                                     : 'bg-red-500 text-white'
-                                }`}
+                                } shadow-red-100`}
                               >
                                 {n.toString().padStart(2, '0')}
                               </span>
                             );
                           })}
+                          <div className="w-px h-6 bg-slate-200 mx-1"></div>
                           {r.blues.map(n => {
                             const isFixed = fixedBlues.includes(n);
                             return (
                               <span 
                                 key={`b${n}`} 
-                                className={`aspect-square w-full sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[10px] sm:text-sm font-bold shadow-sm transition-transform ${
+                                className={`w-9 h-9 md:w-10 md:h-10 rounded-full flex items-center justify-center text-xs md:text-sm font-black shadow-md transition-all group-hover:scale-105 ${
                                   isFixed 
-                                    ? 'bg-blue-700 text-white ring-2 ring-blue-200 ring-offset-1' 
+                                    ? 'bg-blue-700 text-white ring-2 ring-blue-200 ring-offset-2' 
                                     : 'bg-blue-500 text-white'
-                                }`}
+                                } shadow-blue-100`}
                               >
                                 {n.toString().padStart(2, '0')}
                               </span>
@@ -330,7 +332,7 @@ export default function RandomPage() {
                       </div>
                     </div>
                     
-                    <div className="flex items-center justify-end gap-1 border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-200/50">
+                    <div className="flex items-center justify-end gap-2">
                       <button 
                         onClick={async () => {
                           if (isSaved) {
@@ -347,29 +349,33 @@ export default function RandomPage() {
                           }
                           loadExistingStates();
                         }}
-                        className={`p-2 rounded-lg transition-all ${isSaved ? 'text-blue-600 bg-blue-50' : 'text-slate-400 hover:text-blue-600 hover:bg-blue-50'}`}
+                        className={`p-3 rounded-xl transition-all ${isSaved ? 'text-indigo-600 bg-indigo-50 shadow-inner' : 'text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 bg-white shadow-sm border border-slate-100'}`}
                       >
                         <Bookmark className={`w-4 h-4 ${isSaved ? 'fill-current' : ''}`} />
                       </button>
                       <button 
-                        onClick={async () => {
+                        onClick={async (e) => {
                           if (isInCart) {
                             await storage.removeFromCartByContent(type, redsStr, bluesStr);
                             refreshCart();
                             toast.show('已从购物车移除', 'info');
+                            loadExistingStates();
                           } else {
-                            await storage.addToCart({
-                              type,
-                              reds: redsStr,
-                              blues: bluesStr,
-                              toolUsed: 'RANDOM'
-                            });
-                            refreshCart();
-                            toast.show('已加入购物车', 'success');
+                            triggerFlyToCart(e, 'bg-orange-500');
+                            setTimeout(async () => {
+                              await storage.addToCart({
+                                type,
+                                reds: redsStr,
+                                blues: bluesStr,
+                                toolUsed: 'RANDOM'
+                              });
+                              refreshCart();
+                              toast.show('已加入购物车', 'success');
+                              loadExistingStates();
+                            }, 600);
                           }
-                          loadExistingStates();
                         }}
-                        className={`p-2 rounded-lg transition-all ${isInCart ? 'text-orange-600 bg-orange-50' : 'text-slate-400 hover:text-orange-600 hover:bg-orange-50'}`}
+                        className={`p-3 rounded-xl transition-all ${isInCart ? 'text-orange-600 bg-orange-50 shadow-inner' : 'text-slate-400 hover:text-orange-600 hover:bg-orange-50 bg-white shadow-sm border border-slate-100'}`}
                       >
                         {isInCart ? <CheckCircle2 className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
                       </button>

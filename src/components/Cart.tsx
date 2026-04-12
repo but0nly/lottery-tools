@@ -4,120 +4,45 @@ import React, { useState, useEffect } from 'react';
 import { toast } from '@/lib/notification';
 import { ShoppingCart, X, Trash2, ChevronRight, Copy, Check, Bookmark } from 'lucide-react';
 import { storage, SavedCombination } from '@/lib/storage';
+import confetti from 'canvas-confetti';
 
 export function Cart() {
   const [isOpen, setIsOpen] = useState(false);
   const [items, setItems] = useState<SavedCombination[]>([]);
   const [copiedId, setCopiedId] = useState<number | null>(null);
   const [savedKeys, setSavedKeys] = useState<Set<string>>(new Set());
-  
-  // Draggable position state
-  const [position, setPosition] = useState({ x: 0, y: 0 });
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
 
-  const loadCart = async () => {
+  const loadCartData = async () => {
     const cartItems = await storage.getCart();
     setItems(cartItems);
   };
 
-  const loadSaved = async () => {
+  const loadSavedData = async () => {
     const saved = await storage.getAllSaved();
     setSavedKeys(new Set(saved.map(i => `${i.type}|${i.reds}|${i.blues}`)));
   };
 
-  const getInitialPosition = () => {
-    if (typeof window === 'undefined') return { x: 0, y: 0 };
-    
-    const saved = localStorage.getItem('cart-pos');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        // Validate if still within bounds
-        if (parsed.x < window.innerWidth && parsed.y < window.innerHeight) {
-          return parsed;
-        }
-      } catch (e) {
-        console.error('Failed to parse saved position', e);
-      }
-    }
-    
-    // Default: bottom-right
-    return { 
-      x: window.innerWidth - 80, 
-      y: window.innerHeight - 150 
-    };
-  };
-
   useEffect(() => {
-    loadCart();
-    loadSaved();
-    setPosition(getInitialPosition());
+    // Initial fetch - delayed to avoid synchronous setState in effect
+    const timer = setTimeout(() => {
+      loadCartData();
+      loadSavedData();
+    }, 0);
     
-    const handleResize = () => {
-      setPosition(prev => {
-        const windowWidth = window.innerWidth;
-        const windowHeight = window.innerHeight;
-        // Keep it within bounds and maintain edge snap
-        const isNearLeft = prev.x < windowWidth / 2;
-        const margin = 16;
-        return {
-          x: isNearLeft ? margin : windowWidth - 64 - margin,
-          y: Math.max(margin, Math.min(prev.y, windowHeight - 80 - margin))
-        };
-      });
-    };
-
-    window.addEventListener('resize', handleResize);
-    window.addEventListener('cart-updated', loadCart);
+    const handleOpen = () => setIsOpen(true);
+    
+    window.addEventListener('cart-open', handleOpen);
+    window.addEventListener('cart-updated', loadCartData);
     return () => {
-      window.removeEventListener('resize', handleResize);
-      window.removeEventListener('cart-updated', loadCart);
+      clearTimeout(timer);
+      window.removeEventListener('cart-open', handleOpen);
+      window.removeEventListener('cart-updated', loadCartData);
     };
   }, []);
 
-  const handlePointerDown = (e: React.PointerEvent) => {
-    setIsDragging(false);
-    setDragStart({ x: e.clientX - position.x, y: e.clientY - position.y });
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-  };
-
-  const handlePointerMove = (e: React.PointerEvent) => {
-    if (e.buttons !== 1) return;
-    
-    const newX = e.clientX - dragStart.x;
-    const newY = e.clientY - dragStart.y;
-    
-    if (Math.abs(newX - position.x) > 5 || Math.abs(newY - position.y) > 5) {
-      setIsDragging(true);
-      setPosition({ x: newX, y: newY });
-    }
-  };
-
-  const handlePointerUp = (e: React.PointerEvent) => {
-    const el = e.currentTarget as HTMLElement;
-    if (el.hasPointerCapture(e.pointerId)) {
-      el.releasePointerCapture(e.pointerId);
-    }
-    
-    if (isDragging) {
-      const margin = 16;
-      const windowWidth = window.innerWidth;
-      const snapX = (position.x + 32) < windowWidth / 2 ? margin : windowWidth - 64 - margin;
-      
-      const windowHeight = window.innerHeight;
-      const snapY = Math.max(margin, Math.min(position.y, windowHeight - 80 - margin));
-      
-      const newPos = { x: snapX, y: snapY };
-      setPosition(newPos);
-      localStorage.setItem('cart-pos', JSON.stringify(newPos));
-      setTimeout(() => setIsDragging(false), 50);
-    }
-  };
-
   const handleRemove = async (id: number) => {
     await storage.removeFromCart(id);
-    loadCart();
+    loadCartData();
   };
 
   const handleSave = async (item: SavedCombination) => {
@@ -134,7 +59,7 @@ export function Cart() {
       });
       toast.show('已保存到收藏库', 'success');
     }
-    loadSaved();
+    loadSavedData();
   };
 
   const handleClear = async () => {
@@ -143,7 +68,7 @@ export function Cart() {
       message: '确定要清空购物车中的所有方案吗？',
       onConfirm: async () => {
         await storage.clearCart();
-        loadCart();
+        loadCartData();
         toast.show('购物车已清空', 'success');
       }
     });
@@ -184,65 +109,55 @@ export function Cart() {
     if (success) {
       setCopiedId(record.id!);
       setTimeout(() => setCopiedId(null), 2000);
+      
+      confetti({
+        particleCount: 100,
+        spread: 70,
+        origin: { y: 0.6 },
+        colors: record.type === 'SSQ' ? ['#ef4444', '#fca5a5', '#ffffff'] : ['#f59e0b', '#fbbf24', '#ffffff']
+      });
+      
+      toast.show('号码已复制！预祝您中大奖！🎉', 'success');
     }
   };
 
-  if (!isOpen) {
-    const isAtLeft = position.x < 100;
-    return (
-      <button
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onClick={() => !isDragging && setIsOpen(true)}
-        style={{ 
-          left: `${position.x}px`, 
-          top: `${position.y}px`,
-          touchAction: 'none'
-        }}
-        className={`fixed w-14 h-14 md:w-16 md:h-16 bg-slate-900 text-white rounded-2xl shadow-2xl flex items-center justify-center group z-50 overflow-hidden ${
-          items.length === 0 ? 'opacity-40 hover:opacity-100' : 'opacity-100'
-        } ${isDragging ? 'scale-95 opacity-80 cursor-grabbing' : 'transition-[left,top,transform,opacity] duration-300 hover:scale-110 cursor-pointer'}`}
-      >
-        <div className={`transition-transform duration-300 ${isAtLeft ? 'translate-x-0' : 'translate-x-0'}`}>
-          <ShoppingCart className="w-5 h-5 md:w-6 md:h-6 group-hover:rotate-12 transition-transform" />
-        </div>
-        {items.length > 0 && (
-          <span className="absolute top-2 right-2 md:top-3 md:right-3 w-5 h-5 bg-rose-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center animate-in zoom-in">
-            {items.length}
-          </span>
-        )}
-        
-        {/* Visual indicator for collapse if near edge */}
-        <div className={`absolute top-0 bottom-0 w-1 bg-white/10 ${isAtLeft ? 'left-0' : 'right-0'}`} />
-      </button>
-    );
-  }
+  if (!isOpen) return null;
 
   return (
     <>
-      <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 transition-opacity" onClick={() => setIsOpen(false)} />
-      <div className="fixed top-0 right-0 h-full w-full max-w-md bg-white shadow-2xl z-50 animate-in slide-in-from-right duration-300 flex flex-col">
-        <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+      <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100] transition-opacity duration-300" onClick={() => setIsOpen(false)} />
+      <div className="fixed top-0 right-0 h-full w-full max-w-md bg-white/95 backdrop-blur-2xl shadow-2xl z-[100] animate-in slide-in-from-right duration-300 flex flex-col border-l border-white/20">
+        
+        {/* Header */}
+        <div className="h-16 px-6 border-b border-slate-100 flex items-center justify-between bg-white relative overflow-hidden flex-shrink-0">
+          <div className="absolute top-0 right-0 -z-10 w-32 h-32 bg-orange-50 rounded-full blur-2xl -mr-10 -mt-10" />
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-slate-900 text-white rounded-xl flex items-center justify-center">
+            <div className="w-10 h-10 bg-gradient-to-br from-orange-400 to-amber-500 text-white rounded-xl flex items-center justify-center shadow-lg shadow-orange-200">
               <ShoppingCart className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="font-bold text-slate-900">选号购物车</h2>
-              <p className="text-xs text-slate-500">已选中 {items.length} 组号码</p>
+              <h2 className="text-base font-black text-slate-900 tracking-tight leading-none">选号购物车</h2>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
+                已选 {items.length} 组号码
+              </p>
             </div>
           </div>
-          <button onClick={() => setIsOpen(false)} className="p-2 hover:bg-slate-200 rounded-lg transition-colors">
+          <button onClick={() => setIsOpen(false)} className="p-2 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-all">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 custom-scrollbar bg-slate-50/50">
           {items.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-center space-y-4 opacity-40">
-              <ShoppingCart className="w-16 h-16" />
-              <p className="font-medium">购物车空空如也</p>
+            <div className="h-full flex flex-col items-center justify-center text-center space-y-6 opacity-60">
+              <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center shadow-inner">
+                <ShoppingCart className="w-10 h-10 text-slate-300" />
+              </div>
+              <div>
+                <p className="font-black text-slate-400 uppercase tracking-widest text-sm mb-1">Cart is Empty</p>
+                <p className="text-sm font-medium text-slate-500">购物车空空如也</p>
+              </div>
             </div>
           ) : (
             items.map((item) => {
@@ -250,29 +165,30 @@ export function Cart() {
               const isSaved = savedKeys.has(key);
               
               return (
-                <div key={item.id} className="p-4 bg-slate-50 rounded-2xl border border-slate-100 relative group">
-                  <div className="flex items-center gap-2 mb-3">
-                    <span className={`text-[10px] font-black px-1.5 py-0.5 rounded border ${
-                      item.type === 'SSQ' ? 'text-rose-600 border-rose-200 bg-rose-50' : 'text-amber-600 border-amber-200 bg-amber-50'
+                <div key={item.id} className="p-4 md:p-5 bg-white rounded-3xl border border-slate-100 shadow-sm hover:shadow-lg hover:border-orange-100 transition-all relative group flex flex-col gap-4">
+                  <div className="flex items-center justify-between">
+                    <span className={`text-[10px] font-black px-2 py-1 rounded-full border tracking-widest ${
+                      item.type === 'SSQ' ? 'text-rose-600 border-rose-200 bg-rose-50 shadow-sm shadow-rose-100' : 'text-amber-600 border-amber-200 bg-amber-50 shadow-sm shadow-amber-100'
                     }`}>
                       {item.type === 'SSQ' ? '双色球' : '大乐透'}
                     </span>
-                    <span className="text-[10px] text-slate-400 font-mono">#{item.id}</span>
                   </div>
-                  <div className="flex flex-wrap gap-1.5 mb-4">
+                  
+                  <div className="flex flex-wrap gap-2 items-center">
                     {item.reds.split(',').map((n, i) => (
-                      <span key={i} className="w-7 h-7 rounded-full bg-red-500 text-white flex items-center justify-center text-xs font-bold shadow-sm">{n}</span>
+                      <span key={i} className="w-8 h-8 rounded-full bg-red-500 text-white flex items-center justify-center text-xs font-black shadow-md shadow-red-100 group-hover:scale-110 transition-transform">{n}</span>
                     ))}
-                    <div className="w-px h-4 bg-slate-200 mx-0.5 mt-1.5" />
+                    <div className="w-px h-6 bg-slate-200 mx-1" />
                     {item.blues.split(',').map((n, i) => (
-                      <span key={i} className="w-7 h-7 rounded-full bg-blue-500 text-white flex items-center justify-center text-xs font-bold shadow-sm">{n}</span>
+                      <span key={i} className="w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center text-xs font-black shadow-md shadow-blue-100 group-hover:scale-110 transition-transform">{n}</span>
                     ))}
                   </div>
-                  <div className="flex justify-end gap-2">
+
+                  <div className="flex justify-end gap-2 border-t border-slate-50 pt-3">
                     <button 
                       onClick={() => handleSave(item)}
-                      className={`p-2 rounded-lg transition-all shadow-sm ${
-                        isSaved ? 'text-blue-600 bg-blue-50' : 'text-slate-400 hover:text-blue-600 hover:bg-white'
+                      className={`p-2.5 rounded-xl transition-all shadow-sm flex items-center gap-1.5 ${
+                        isSaved ? 'text-indigo-600 bg-indigo-50 shadow-inner' : 'text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 border border-slate-100'
                       }`}
                       title={isSaved ? "取消收藏" : "收藏方案"}
                     >
@@ -280,13 +196,15 @@ export function Cart() {
                     </button>
                     <button 
                       onClick={() => copyToClipboard(item)}
-                      className="p-2 text-slate-400 hover:text-slate-900 hover:bg-white rounded-lg transition-all shadow-sm"
+                      className="p-2.5 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-all shadow-sm border border-slate-100"
+                      title="复制号码"
                     >
                       {copiedId === item.id ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
                     </button>
                     <button 
                       onClick={() => handleRemove(item.id!)}
-                      className="p-2 text-slate-400 hover:text-rose-500 hover:bg-white rounded-lg transition-all shadow-sm"
+                      className="p-2.5 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all shadow-sm border border-slate-100"
+                      title="删除"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -297,28 +215,53 @@ export function Cart() {
           )}
         </div>
 
+        {/* Footer Actions */}
         {items.length > 0 && (
-          <div className="p-6 border-t border-slate-100 space-y-3">
-            <button 
-              onClick={handleClear}
-              className="w-full py-3 text-slate-500 text-sm font-medium hover:text-rose-500 transition-colors"
-            >
-              清空购物车
-            </button>
+          <div className="p-6 bg-white border-t border-slate-100 space-y-4 shadow-[0_-10px_20px_rgba(0,0,0,0.02)]">
             <button 
               onClick={async () => {
                 const allText = items.map(item => `${item.type === 'SSQ' ? '双色球' : '大乐透'}: ${item.reds} + ${item.blues}`).join('\n');
                 const success = await copyToClipboardInternal(allText);
                 if (success) {
-                  toast.show('全部选号已复制到剪贴板', 'success');
+                  // Fire two explosions for copy all
+                  const end = Date.now() + 2000;
+                  const frame = () => {
+                    confetti({
+                      particleCount: 2,
+                      angle: 60,
+                      spread: 55,
+                      origin: { x: 0 },
+                      colors: ['#ef4444', '#3b82f6', '#f59e0b']
+                    });
+                    confetti({
+                      particleCount: 2,
+                      angle: 120,
+                      spread: 55,
+                      origin: { x: 1 },
+                      colors: ['#ef4444', '#3b82f6', '#f59e0b']
+                    });
+
+                    if (Date.now() < end) {
+                      requestAnimationFrame(frame);
+                    }
+                  };
+                  frame();
+
+                  toast.show('全部选号已复制！预祝您中大奖！🎉', 'success');
                 } else {
                   toast.show('复制失败，请尝试手动选择并复制', 'error');
                 }
               }}
-              className="w-full py-4 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-all flex items-center justify-center gap-2"
+              className="w-full py-4 bg-gradient-to-r from-slate-900 to-slate-800 text-white rounded-2xl font-black text-lg hover:from-slate-800 hover:to-slate-700 transition-all flex items-center justify-center gap-2 shadow-xl shadow-slate-200 active:scale-[0.98]"
             >
               复制全部方案
-              <ChevronRight className="w-4 h-4" />
+              <ChevronRight className="w-5 h-5" />
+            </button>
+            <button 
+              onClick={handleClear}
+              className="w-full py-3 text-slate-400 text-xs font-black uppercase tracking-widest hover:text-rose-500 transition-colors"
+            >
+              清空购物车全部内容
             </button>
           </div>
         )}

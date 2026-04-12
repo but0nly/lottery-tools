@@ -33,17 +33,40 @@ LotteryTools is a professional web application designed for optimizing and analy
 ## Development Guide
 
 ### Building and Running
-- **Install dependencies:** `npm install`
-- **Development server:** `npm run dev`
-- **Build for production:** `npm run build`
-- **Start production server:** `npm run start`
-- **Linting:** `npm run lint`
+- **Install dependencies:** `pnpm install`
+- **Development server:** `pnpm run dev`
+- **Build for production:** `pnpm run build`
+- **Start production server:** `pnpm run start`
+- **Linting:** `pnpm run lint`
 
 ### Coding Conventions
 - **Core Algorithms:** New lottery logic or filters should be added to `src/lib/combinations.ts`.
 - **API Routes:** Follow the Next.js Route Handler pattern in `src/app/api/[feature]/route.ts`.
 - **State Management:** Uses standard React hooks (`useState`, `useReducer`) and IndexedDB storage helpers (`src/lib/storage.ts`).
-- **Styling:** Adhere to Tailwind CSS 4 utility classes.
+- **Styling:** Adhere to Tailwind CSS 4 utility classes and follow the **Modern Vibrant** design system documented below.
+
+## UI Style Guide (Modern Vibrant)
+The application follows a premium, data-driven "Modern Vibrant" (方案 C) aesthetic characterized by glassmorphism, bold typography, and strategic use of gradients.
+
+### Core Visual Principles
+- **Glassmorphism:** Use semi-transparent backgrounds (`bg-white/70` or `bg-white/80`) combined with high backdrop blur (`backdrop-blur-xl` to `backdrop-blur-2xl`) and subtle white borders.
+- **Dynamic Backgrounds:** Pages should feature soft, large background gradient blobs (e.g., `bg-blue-100/50`, `bg-emerald-50`) with high blur (`blur-3xl`) to create depth.
+- **Shadows:** Utilize deep, soft shadows (`shadow-xl` or custom `shadow-[0_20px_50px_rgba(0,0,0,0.1)]`) instead of hard borders.
+- **Typography:** Titles use `font-black` with `tracking-tight`. Gradient text (`bg-clip-text text-transparent bg-gradient-to-r`) is preferred for main headings.
+
+### Color System (Functional Coding)
+- **Global Background:** `bg-slate-50`.
+- **Combination Reducer:** Emerald/Teal (`from-emerald-400 to-teal-500`).
+- **Smart Random:** Orange/Amber (`from-orange-400 to-amber-500`).
+- **Reverse Analysis:** Rose/Pink (`from-rose-400 to-pink-500`).
+- **Saved Schemes:** Indigo/Blue (`from-indigo-500 to-blue-600`).
+- **Desktop Sidebar:** Premium Dark (`bg-slate-950`).
+
+### Component Standards
+- **Cards:** Large border radius (`rounded-3xl` or `rounded-[40px]`). Hover state: `hover:-translate-y-2` with enhanced shadow.
+- **Buttons:** Primary buttons use vibrant gradients, `font-black`, and `rounded-2xl` or `rounded-3xl`.
+- **Mobile Navigation:** "Floating Dock" style — capsule-shaped, detached from screen edges, high elevation shadow.
+- **Interactive States:** Icons should scale on hover (`hover:scale-110`). Tactile feedback on click (`active:scale-95`).
 
 ## Data Models
 Data is stored in IndexedDB with two main stores:

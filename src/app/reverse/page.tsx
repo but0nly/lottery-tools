@@ -29,6 +29,9 @@ import {
   ShoppingCart
 } from 'lucide-react';
 
+import { LotteryTabSwitcher } from '@/components/LotteryTabSwitcher';
+import { triggerFlyToCart } from '@/components/FlyToCartAnimation';
+
 export default function ReversePage() {
   const [type, setType] = useState<LotteryType>('SSQ');
   const [mode, setMode] = useState<'FREQUENCY' | 'GAME_THEORY'>('GAME_THEORY');
@@ -120,7 +123,7 @@ export default function ReversePage() {
     checkExistingStates();
   };
 
-  const handleAddToCart = async () => {
+  const handleAddToCart = async (e: React.MouseEvent) => {
     if (!result) return;
     const redsStr = result.reds.map(n => n.toString().padStart(2, '0')).join(',');
     const bluesStr = result.blues.map(n => n.toString().padStart(2, '0')).join(',');
@@ -130,16 +133,20 @@ export default function ReversePage() {
       refreshCart();
       toast.show('已从购物车移除', 'info');
     } else {
-      await storage.addToCart({
-        type,
-        reds: redsStr,
-        blues: bluesStr,
-        toolUsed: 'REVERSE'
-      });
-      refreshCart();
-      toast.show('已加入购物车', 'success');
+      triggerFlyToCart(e, 'bg-rose-500');
+      
+      setTimeout(async () => {
+        await storage.addToCart({
+          type,
+          reds: redsStr,
+          blues: bluesStr,
+          toolUsed: 'REVERSE'
+        });
+        refreshCart();
+        toast.show('已加入购物车', 'success');
+        checkExistingStates();
+      }, 600);
     }
-    checkExistingStates();
   };
 
   const handleClear = () => {
@@ -153,115 +160,118 @@ export default function ReversePage() {
   };
 
   return (
-    <div className="p-4 md:p-8 max-w-6xl mx-auto pb-24 md:pb-8">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-        <h1 className="text-2xl md:text-3xl font-bold text-slate-900 flex items-center gap-3">
-          <History className="w-8 h-8 text-rose-500" />
-          冷门组合生成器
-        </h1>
-        <button 
-          onClick={handleClear}
-          className="flex items-center justify-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-lg text-sm font-medium hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 transition-all shadow-sm"
-        >
-          <Trash2 className="w-4 h-4" />
-          重置参数
-        </button>
+    <div className="relative min-h-full p-4 md:p-8 max-w-7xl mx-auto pb-32 md:pb-8 overflow-hidden">
+      {/* Background Blobs */}
+      <div className="absolute top-0 right-0 -z-10 w-96 h-96 bg-rose-50 rounded-full blur-3xl opacity-50 -mr-24 -mt-24" />
+      
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10 md:pr-20">
+        <div className="flex flex-col gap-2">
+          <h1 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight flex items-center gap-3">
+            <div className="w-12 h-12 bg-gradient-to-br from-rose-400 to-pink-500 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-rose-200">
+              <History className="w-7 h-7" />
+            </div>
+            反向冷门分析
+          </h1>
+          <p className="text-slate-500 text-sm md:text-base ml-1">基于博弈论与大数据规避大众心理热门号</p>
+        </div>
+        
+        <div className="flex gap-3">
+          <button 
+            onClick={handleClear}
+            className="flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-3 bg-white hover:bg-rose-50 border border-slate-200 hover:border-rose-200 text-slate-600 hover:text-rose-600 rounded-2xl text-sm font-bold transition-all shadow-sm active:scale-[0.98]"
+          >
+            <Trash2 className="w-4 h-4" />
+            重置参数
+          </button>
+        </div>
       </div>
 
-      <div className="flex flex-wrap gap-2 md:gap-4 mb-8">
+      <div className="mb-8 flex justify-center md:justify-start">
+        <LotteryTabSwitcher 
+          activeTab={type} 
+          onTabChange={(newType) => { setType(newType); setResult(null); }} 
+        />
+      </div>
+
+      <div className="inline-flex p-1.5 bg-slate-100/50 backdrop-blur-sm rounded-2xl mb-10 border border-slate-200/50">
         <button 
           onClick={() => { setMode('GAME_THEORY'); handleClear(); }}
-          className={`px-4 md:px-6 py-2 rounded-lg font-medium transition-colors text-sm md:text-base ${mode === 'GAME_THEORY' ? 'bg-slate-900 text-white shadow-md' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+          className={`px-6 py-2.5 rounded-xl font-black transition-all text-sm ${mode === 'GAME_THEORY' ? 'bg-white text-rose-600 shadow-md ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-700'}`}
         >
-          心理避让模式 (博弈论)
+          心理避让 (博弈论)
         </button>
         <button 
           onClick={() => { setMode('FREQUENCY'); handleClear(); }}
-          className={`px-4 md:px-6 py-2 rounded-lg font-medium transition-colors text-sm md:text-base ${mode === 'FREQUENCY' ? 'bg-slate-900 text-white shadow-md' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+          className={`px-6 py-2.5 rounded-xl font-black transition-all text-sm ${mode === 'FREQUENCY' ? 'bg-white text-rose-600 shadow-md ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-700'}`}
         >
-          历史遗漏模式 (大数据)
+          历史遗漏 (大数据)
         </button>
       </div>
 
-      <div className="grid lg:grid-cols-2 gap-4 md:gap-8 min-w-0">
-        <div className="space-y-4 md:space-y-6 min-w-0">
-          <div className="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-slate-200">
-            <h3 className="text-base md:text-lg font-semibold mb-4">核心逻辑说明</h3>
-            <p className="text-xs md:text-sm text-slate-500 leading-relaxed">
+      <div className="grid lg:grid-cols-2 gap-6 md:gap-8 min-w-0">
+        <div className="space-y-6 min-w-0">
+          <div className="bg-white/70 backdrop-blur-xl p-6 rounded-[32px] shadow-xl shadow-slate-200/50 border border-white">
+            <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
+              核心逻辑说明
+            </h3>
+            <p className="text-sm text-slate-500 leading-relaxed font-medium bg-slate-50/50 p-4 rounded-2xl border border-slate-100">
               {mode === 'GAME_THEORY' 
                 ? "反向选号：通过算法评估号码大众偏好度，避开热门的生日、吉利、连号，旨在提升中奖后独揽大奖的概率。" 
                 : "遗漏统计：分析近期历史开奖数据，寻找长期未出的冷门号码，追求号码出现的动态概率平衡。"}
             </p>
           </div>
 
-          <div className="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-slate-200">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">彩种选择</label>
-                <div className="flex gap-2">
-                  <button 
-                    onClick={() => { setType('SSQ'); setResult(null); }}
-                    className={`flex-1 py-2 rounded-lg font-medium text-xs md:text-sm transition-colors ${type === 'SSQ' ? 'bg-rose-500 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+          {mode === 'FREQUENCY' && (
+            <div className="bg-white/70 backdrop-blur-xl p-6 rounded-[32px] shadow-xl shadow-slate-200/50 border border-white animate-in fade-in slide-in-from-right-4 duration-500">
+              <label className="block text-sm font-black text-slate-400 mb-4 uppercase tracking-widest">分析样本量</label>
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                {[30, 50, 100, 200, 500].map((size) => (
+                  <button
+                    key={size}
+                    onClick={() => setHistorySize(size)}
+                    className={`py-2.5 px-3 rounded-xl text-xs font-black transition-all ${
+                      historySize === size 
+                        ? 'bg-rose-500 text-white shadow-lg shadow-rose-100' 
+                        : 'bg-slate-50/50 text-slate-500 border-2 border-slate-100 hover:border-rose-200'
+                    }`}
                   >
-                    双色球 (SSQ)
+                    {size}期
                   </button>
-                  <button 
-                    onClick={() => { setType('DLT'); setResult(null); }}
-                    className={`flex-1 py-2 rounded-lg font-medium text-xs md:text-sm transition-colors ${type === 'DLT' ? 'bg-rose-500 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-                  >
-                    大乐透 (DLT)
-                  </button>
-                </div>
+                ))}
               </div>
-              
-              {mode === 'FREQUENCY' && (
-                <div className="animate-in fade-in slide-in-from-right-4 duration-300">
-                  <label className="block text-sm font-medium text-slate-700 mb-2">分析样本量</label>
-                  <select 
-                    value={historySize}
-                    onChange={e => setHistorySize(parseInt(e.target.value))}
-                    className="w-full border-slate-200 bg-slate-50 rounded-lg shadow-sm focus:border-rose-500 focus:ring-1 focus:ring-rose-500 py-2 px-3 text-xs md:text-sm outline-none transition-all"
-                  >
-                    <option value={30}>最近 30 期</option>
-                    <option value={50}>最近 50 期</option>
-                    <option value={100}>最近 100 期</option>
-                    <option value={200}>最近 200 期</option>
-                    <option value={500}>最近 500 期</option>
-                  </select>
-                </div>
-              )}
             </div>
-          </div>
+          )}
 
           {mode === 'GAME_THEORY' && (
-            <div className="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-slate-200 animate-in fade-in zoom-in duration-300">
-              <div className="flex items-center justify-between mb-4">
+            <div className="bg-white/70 backdrop-blur-xl p-6 rounded-[32px] shadow-xl shadow-slate-200/50 border border-white animate-in fade-in zoom-in duration-500">
+              <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-2">
-                  <Sliders className="w-4 h-4 text-rose-500" />
-                  <h3 className="font-bold text-sm md:text-base text-slate-800">算法参数微调</h3>
+                  <Sliders className="w-5 h-5 text-rose-500" />
+                  <h3 className="font-black text-lg text-slate-800">算法参数微调</h3>
                   <button 
                     onClick={() => setShowAlgorithmTip(!showAlgorithmTip)}
-                    className={`p-1 rounded-full transition-colors ${showAlgorithmTip ? 'bg-rose-100 text-rose-600' : 'text-slate-300 hover:text-slate-400 hover:bg-slate-100'}`}
+                    className={`p-1.5 rounded-full transition-colors ${showAlgorithmTip ? 'bg-rose-100 text-rose-600' : 'text-slate-300 hover:text-slate-400 hover:bg-slate-100'}`}
                   >
                     <HelpCircle className="w-4 h-4" />
                   </button>
                 </div>
                 <button 
                   onClick={() => setGtConfig(DEFAULT_GAME_THEORY_CONFIG)}
-                  className="text-[10px] md:text-xs text-rose-600 font-medium hover:underline"
+                  className="text-xs text-rose-600 font-black hover:underline underline-offset-4"
                 >
                   恢复默认
                 </button>
               </div>
 
               {showAlgorithmTip && (
-                <p className="text-[10px] md:text-xs text-slate-500 mb-6 bg-rose-50/50 p-3 rounded-xl border border-rose-100/50 flex items-start gap-1.5 animate-in slide-in-from-top-2 duration-200 leading-relaxed shadow-sm">
-                  <Info className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-rose-500" />
+                <div className="text-[11px] md:text-xs text-rose-800 mb-6 bg-rose-50/80 p-4 rounded-2xl border border-rose-100 flex items-start gap-2 animate-in fade-in slide-in-from-top-2 duration-300 leading-relaxed shadow-inner">
+                  <Info className="w-4 h-4 mt-0.5 flex-shrink-0 text-rose-500" />
                   权重越高表示该特征在选号时“扣分”越多。算法会寻找权重总分最低的号码组合（即最冷门、最反直觉的方案）。
-                </p>
+                </div>
               )}
               
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-5">
                 {[
                   { label: '月权重', key: 'monthPenalty', desc: '1-12月' },
                   { label: '日权重', key: 'birthdayPenalty', desc: '1-31日' },
@@ -271,14 +281,14 @@ export default function ReversePage() {
                   { label: '蓝大数', key: 'blueLargeBonus', desc: '>12蓝球' },
                 ].map((item) => (
                   <div key={item.key}>
-                    <label className="block text-[10px] md:text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wider">{item.label}</label>
+                    <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-[0.1em]">{item.label}</label>
                     <input 
                       type="number"
                       value={gtConfig[item.key as keyof GameTheoryConfig]}
                       onChange={(e) => updateConfig(item.key as keyof GameTheoryConfig, e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 md:px-3 py-1.5 md:py-2 text-xs md:text-sm focus:ring-2 focus:ring-rose-500 outline-none transition-all"
+                      className="w-full bg-slate-50/50 border-2 border-slate-100 rounded-xl px-4 py-2.5 text-sm font-bold focus:border-rose-500 focus:bg-white outline-none transition-all shadow-inner"
                     />
-                    <p className="text-[10px] text-slate-400 mt-1">{item.desc}</p>
+                    <p className="text-[10px] text-slate-400 mt-1.5 font-medium">{item.desc}</p>
                   </div>
                 ))}
               </div>
@@ -288,92 +298,93 @@ export default function ReversePage() {
           <button 
             onClick={handleCalculate}
             disabled={isLoading}
-            className="w-full py-4 bg-rose-500 hover:bg-rose-600 disabled:bg-slate-300 text-white font-bold rounded-xl shadow-lg shadow-rose-100 transition-all text-lg flex items-center justify-center gap-2 active:scale-[0.98]"
+            className="w-full py-5 bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 disabled:from-slate-300 disabled:to-slate-400 text-white font-black rounded-3xl shadow-xl shadow-rose-200 transition-all text-xl flex items-center justify-center gap-3 active:scale-[0.98]"
           >
             {isLoading ? (
               <>
-                <RefreshCw className="w-5 h-5 animate-spin" />
+                <RefreshCw className="w-6 h-6 animate-spin" />
                 正在执行反向数据分析...
               </>
             ) : mode === 'GAME_THEORY' ? (
               <>
-                <BrainCircuit className="w-5 h-5" />
+                <BrainCircuit className="w-6 h-6" />
                 计算最佳避让方案
               </>
             ) : (
               <>
-                <Users className="w-5 h-5" />
+                <Users className="w-6 h-6" />
                 寻找极致遗漏冷门
               </>
             )}
           </button>
         </div>
 
-        <div className="bg-white p-3 md:p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col h-full max-h-[1000px] min-w-0">
-          <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-3 mb-4">
-            <h3 className="text-lg md:text-xl font-bold text-slate-900 flex items-center gap-2">
+        <div className="bg-white/70 backdrop-blur-xl p-4 md:p-10 rounded-[40px] shadow-2xl shadow-slate-200/60 border border-white flex flex-col h-full max-h-[1000px] min-w-0">
+          <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-10">
+            <h3 className="text-2xl font-black text-slate-900 flex items-center gap-3">
               分析推荐结果
             </h3>
           </div>
 
-          <div className="flex-1 overflow-y-auto pr-2 space-y-3 custom-scrollbar">
+          <div className="flex-1 overflow-y-auto pr-2 space-y-6 custom-scrollbar">
             {!result ? (
-              <div className="h-full flex flex-col items-center justify-center text-slate-400 space-y-4">
-                <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center">
-                  <History className="w-8 h-8 text-slate-200" />
+              <div className="h-full flex flex-col items-center justify-center text-slate-400 space-y-6">
+                <div className="w-24 h-24 bg-slate-50/50 rounded-full flex items-center justify-center shadow-inner">
+                  <History className="w-10 h-10 text-slate-200" />
                 </div>
                 <div className="text-center">
-                  <p className="font-medium text-slate-500">待分析号码</p>
-                  <p className="text-sm px-4">在左侧设置分析模式并点击生成</p>
+                  <p className="font-black text-slate-400 uppercase tracking-widest text-sm mb-2">Awaiting Analysis</p>
+                  <p className="text-sm text-slate-500 font-medium px-4">在左侧设置分析模式并点击生成</p>
                 </div>
               </div>
             ) : (
-              <div className="space-y-6">
-                <div className="p-4 bg-slate-50 border border-slate-100 rounded-xl transition-all hover:bg-white hover:shadow-md group">
-                  <div className="flex flex-col gap-4">
-                    <div className="grid grid-cols-7 sm:flex sm:justify-center sm:flex-wrap gap-1.5 md:gap-2">
+              <div className="space-y-10">
+                <div className="p-8 bg-slate-50/50 border-2 border-white rounded-[40px] transition-all hover:bg-white hover:shadow-2xl hover:shadow-slate-100 group">
+                  <div className="flex flex-col gap-10">
+                    <div className="flex flex-wrap justify-center gap-3 md:gap-4">
                       {result.reds.map(n => (
-                        <span key={`r${n}`} className="aspect-square w-full sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-full bg-red-500 text-white flex items-center justify-center text-[10px] sm:text-base md:text-lg font-black shadow-md transition-transform group-hover:scale-110">
+                        <span key={`r${n}`} className="w-12 h-12 md:w-16 md:h-16 rounded-full bg-red-500 text-white flex items-center justify-center text-lg md:text-2xl font-black shadow-lg shadow-red-100 transition-transform group-hover:scale-110">
                           {n.toString().padStart(2, '0')}
                         </span>
                       ))}
-                      <div className="hidden sm:block w-px h-8 bg-slate-300 mx-1 self-center"></div>
+                      <div className="w-px h-12 md:h-16 bg-slate-200 mx-2 self-center"></div>
                       {result.blues.map(n => (
-                        <span key={`b${n}`} className="aspect-square w-full sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-full bg-blue-500 text-white flex items-center justify-center text-[10px] sm:text-base md:text-lg font-black shadow-md transition-transform group-hover:scale-110">
+                        <span key={`b${n}`} className="w-12 h-12 md:w-16 md:h-16 rounded-full bg-blue-500 text-white flex items-center justify-center text-lg md:text-2xl font-black shadow-lg shadow-blue-100 transition-transform group-hover:scale-110">
                           {n.toString().padStart(2, '0')}
                         </span>
                       ))}
                     </div>
                     
-                    <div className="flex items-center justify-center gap-2 border-t pt-4 border-slate-200/50">
+                    <div className="flex items-center justify-center gap-4">
                       <button 
                         onClick={handleSave}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-sm ${
-                          isSaved ? 'text-indigo-600 bg-indigo-50 shadow-inner' : 'text-slate-600 bg-white border border-slate-200 hover:bg-slate-50'
+                        className={`flex items-center gap-3 px-6 py-3.5 rounded-2xl text-sm font-black transition-all shadow-lg ${
+                          isSaved ? 'text-indigo-600 bg-indigo-50 shadow-inner ring-1 ring-indigo-200' : 'text-slate-600 bg-white border border-slate-100 hover:bg-slate-50 shadow-slate-100'
                         }`}
                       >
-                        <Bookmark className={`w-4 h-4 ${isSaved ? 'fill-current' : ''}`} />
-                        {isSaved ? '已收藏' : '收藏'}
+                        <Bookmark className={`w-5 h-5 ${isSaved ? 'fill-current' : ''}`} />
+                        {isSaved ? '已收藏' : '加入收藏'}
                       </button>
                       <button 
-                        onClick={handleAddToCart}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-sm ${
-                          isInCart ? 'text-orange-600 bg-orange-50 shadow-inner' : 'text-orange-600 bg-white border border-orange-200 hover:bg-orange-50'
+                        onClick={(e) => handleAddToCart(e)}
+                        className={`flex items-center gap-3 px-6 py-3.5 rounded-2xl text-sm font-black transition-all shadow-lg ${
+                          isInCart ? 'text-orange-600 bg-orange-50 shadow-inner ring-1 ring-orange-200' : 'text-white bg-slate-900 hover:bg-slate-800 shadow-slate-200'
                         }`}
                       >
-                        {isInCart ? <CheckCircle2 className="w-4 h-4" /> : <ShoppingCart className="w-4 h-4" />}
+                        {isInCart ? <CheckCircle2 className="w-5 h-5" /> : <ShoppingCart className="w-5 h-5" />}
                         {isInCart ? '已加购' : '加购物车'}
                       </button>
                     </div>
                   </div>
                 </div>
                 
-                <div className="bg-rose-50/50 border border-rose-100 rounded-xl p-4">
-                  <h4 className="text-xs font-bold text-rose-900 mb-2 flex items-center gap-1.5">
-                    <Zap className="w-3.5 h-3.5" />
-                    推荐理由
+                <div className="relative overflow-hidden bg-gradient-to-br from-rose-50 to-pink-50 border border-rose-100/50 rounded-[32px] p-8">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-white/40 rounded-full blur-2xl -mr-16 -mt-16" />
+                  <h4 className="text-sm font-black text-rose-900 mb-4 flex items-center gap-2">
+                    <Zap className="w-4 h-4" />
+                    算法推荐理由
                   </h4>
-                  <p className="text-[10px] md:text-xs text-rose-700 leading-relaxed">
+                  <p className="text-xs md:text-sm text-rose-700/90 leading-relaxed font-medium relative z-10">
                     {mode === 'GAME_THEORY' 
                       ? "该组合成功避开了大众最常选取的日期号与吉祥数字，且包含多个高位号码。根据博弈理论，此类组合若开出，一等奖被多人瓜分的概率降至最低，具有极高的单注期望价值。"
                       : `分析了最近 ${historySize} 期的开奖走势，以上号码在近期出现的频率处于谷底（统计显著性高）。根据概率平衡原则，长期遗漏的号码在未来周期内反弹概率会有所上升。`}
