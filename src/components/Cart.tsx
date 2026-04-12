@@ -9,18 +9,101 @@ export function Cart() {
   const [isOpen, setIsOpen] = useState(false);
   const [items, setItems] = useState<SavedCombination[]>([]);
   const [copiedId, setCopiedId] = useState<number | null>(null);
+  
+  // Draggable position state
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
 
   const loadCart = async () => {
     const cartItems = await storage.getCart();
     setItems(cartItems);
   };
 
+  const getInitialPosition = () => {
+    if (typeof window === 'undefined') return { x: 0, y: 0 };
+    
+    const saved = localStorage.getItem('cart-pos');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        // Validate if still within bounds
+        if (parsed.x < window.innerWidth && parsed.y < window.innerHeight) {
+          return parsed;
+        }
+      } catch (e) {
+        console.error('Failed to parse saved position', e);
+      }
+    }
+    
+    // Default: bottom-right
+    return { 
+      x: window.innerWidth - 80, 
+      y: window.innerHeight - 150 
+    };
+  };
+
   useEffect(() => {
     loadCart();
-    // Listen for storage changes (custom event)
+    setPosition(getInitialPosition());
+    
+    const handleResize = () => {
+      setPosition(prev => {
+        const windowWidth = window.innerWidth;
+        const windowHeight = window.innerHeight;
+        // Keep it within bounds and maintain edge snap
+        const isNearLeft = prev.x < windowWidth / 2;
+        const margin = 16;
+        return {
+          x: isNearLeft ? margin : windowWidth - 64 - margin,
+          y: Math.max(margin, Math.min(prev.y, windowHeight - 80 - margin))
+        };
+      });
+    };
+
+    window.addEventListener('resize', handleResize);
     window.addEventListener('cart-updated', loadCart);
-    return () => window.removeEventListener('cart-updated', loadCart);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('cart-updated', loadCart);
+    };
   }, []);
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    setIsDragging(false);
+    setDragStart({ x: e.clientX - position.x, y: e.clientY - position.y });
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (e.buttons !== 1) return;
+    
+    const newX = e.clientX - dragStart.x;
+    const newY = e.clientY - dragStart.y;
+    
+    if (Math.abs(newX - position.x) > 5 || Math.abs(newY - position.y) > 5) {
+      setIsDragging(true);
+      setPosition({ x: newX, y: newY });
+    }
+  };
+
+  const handlePointerUp = (e: React.PointerEvent) => {
+    (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+    
+    if (isDragging) {
+      const margin = 16;
+      const windowWidth = window.innerWidth;
+      const snapX = (position.x + 32) < windowWidth / 2 ? margin : windowWidth - 64 - margin;
+      
+      const windowHeight = window.innerHeight;
+      const snapY = Math.max(margin, Math.min(position.y, windowHeight - 80 - margin));
+      
+      const newPos = { x: snapX, y: snapY };
+      setPosition(newPos);
+      localStorage.setItem('cart-pos', JSON.stringify(newPos));
+      setTimeout(() => setIsDragging(false), 50);
+    }
+  };
 
   const handleRemove = async (id: number) => {
     await storage.removeFromCart(id);
@@ -78,17 +161,33 @@ export function Cart() {
   };
 
   if (!isOpen) {
+    const isAtLeft = position.x < 100;
     return (
       <button
-        onClick={() => setIsOpen(true)}
-        className="fixed bottom-20 right-4 md:bottom-8 md:right-8 w-14 h-14 md:w-16 md:h-16 bg-slate-900 text-white rounded-2xl shadow-2xl flex items-center justify-center group hover:scale-110 transition-all z-50 overflow-hidden"
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onClick={() => !isDragging && setIsOpen(true)}
+        style={{ 
+          left: `${position.x}px`, 
+          top: `${position.y}px`,
+          touchAction: 'none'
+        }}
+        className={`fixed w-14 h-14 md:w-16 md:h-16 bg-slate-900 text-white rounded-2xl shadow-2xl flex items-center justify-center group z-50 overflow-hidden ${
+          items.length === 0 ? 'opacity-40 hover:opacity-100' : 'opacity-100'
+        } ${isDragging ? 'scale-95 opacity-80 cursor-grabbing' : 'transition-[left,top,transform,opacity] duration-300 hover:scale-110 cursor-pointer'}`}
       >
-        <ShoppingCart className="w-5 h-5 md:w-6 md:h-6 group-hover:rotate-12 transition-transform" />
+        <div className={`transition-transform duration-300 ${isAtLeft ? 'translate-x-0' : 'translate-x-0'}`}>
+          <ShoppingCart className="w-5 h-5 md:w-6 md:h-6 group-hover:rotate-12 transition-transform" />
+        </div>
         {items.length > 0 && (
           <span className="absolute top-2 right-2 md:top-3 md:right-3 w-5 h-5 bg-rose-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center animate-in zoom-in">
             {items.length}
           </span>
         )}
+        
+        {/* Visual indicator for collapse if near edge */}
+        <div className={`absolute top-0 bottom-0 w-1 bg-white/10 ${isAtLeft ? 'left-0' : 'right-0'}`} />
       </button>
     );
   }
