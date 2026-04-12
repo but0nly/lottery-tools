@@ -5,7 +5,7 @@ export default function Home() {
   return (
     <div className="p-4 md:p-8 max-w-6xl mx-auto">
       <header className="mb-12">
-        <h1 className="text-4xl font-extrabold text-slate-900 mb-4 tracking-tight">欢迎使用 彩通宝</h1>
+        <h1 className="text-4xl font-extrabold text-slate-900 mb-4 tracking-tight">欢迎使用彩通宝</h1>
         <p className="text-lg text-slate-600 max-w-3xl">专业的双色球和大乐透组合优化、智能随机选号与历史热度分析平台。在这里，你可以缩水降本、定胆随机选号，并寻找独家冷门奖号。</p>
       </header>
 
