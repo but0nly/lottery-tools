@@ -1,12 +1,13 @@
 # Stage 1: Build
-FROM node:20-alpine AS builder
+# 使用国内镜像源加速基础镜像拉取 (例如腾讯云或公共镜像站)
+FROM m.daocloud.io/docker.io/library/node:20-alpine AS builder
 WORKDIR /app
 
 # Enable pnpm via corepack
 RUN corepack enable pnpm
 
-# Copy package.json and pnpm-lock.yaml
-COPY package.json pnpm-lock.yaml ./
+# Copy package.json, pnpm-lock.yaml and .npmrc (for registry mirror)
+COPY package.json pnpm-lock.yaml .npmrc ./
 
 # Install dependencies using pnpm
 RUN pnpm install --frozen-lockfile
@@ -17,7 +18,7 @@ COPY . .
 RUN pnpm run build
 
 # Stage 2: Run
-FROM node:20-alpine AS runner
+FROM m.daocloud.io/docker.io/library/node:20-alpine AS runner
 WORKDIR /app
 
 # Enable pnpm via corepack
