@@ -17,7 +17,7 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
             # 这里的路径替换为你服务器上项目的实际路径
-            cd ~/app/lottery_tools 
+            cd apps/lottery-tools/
             
             # 拉取最新代码
             git pull origin main
