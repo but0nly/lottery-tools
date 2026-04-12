@@ -34,6 +34,12 @@ class NotificationManager {
     const id = this.nextId++;
     const notification = { id, message, type };
     this.notifications = [...this.notifications, notification];
+    
+    // Maintain maximum of 3 notifications
+    if (this.notifications.length > 3) {
+      this.notifications = this.notifications.slice(-3);
+    }
+    
     this.notify();
 
     setTimeout(() => {

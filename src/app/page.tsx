@@ -37,7 +37,7 @@ export default function Home() {
             支持“定胆”随机生成，锁定心仪号码后补齐剩余空位，在概率中寻找惊喜。
           </p>
           <ul className="space-y-2 mb-8 text-sm text-slate-600 flex-1">
-            <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-orange-500"/> 独家长按定胆技术</li>
+            <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-orange-500"/> 灵活一键定胆技术</li>
             <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-orange-500"/> 一次生成 1-1000 注</li>
             <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-orange-500"/> 自定义号码池补全</li>
           </ul>

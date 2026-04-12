@@ -158,7 +158,7 @@ export default function RandomPage() {
                   设置红球胆码 ({fixedReds.length})
                 </div>
                 <span className="text-[10px] md:text-xs text-slate-400 font-normal">
-                  长按数字设为胆码 (固定不变)
+                  点击数字设为胆码 (固定不变)
                 </span>
               </h3>
             </div>
@@ -179,6 +179,9 @@ export default function RandomPage() {
                   <span className="w-2 h-2 rounded-full bg-blue-500"></span>
                   设置蓝球胆码 ({fixedBlues.length})
                 </div>
+                <span className="text-[10px] md:text-xs text-slate-400 font-normal">
+                  点击数字设为胆码 (固定不变)
+                </span>
               </h3>
             </div>
             <BallPicker 
@@ -239,7 +242,7 @@ export default function RandomPage() {
           </button>
         </div>
 
-        <div className="bg-white p-3 md:p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col h-[500px] lg:h-[calc(100vh-280px)] min-h-[500px] min-w-0">
+        <div className="bg-white p-3 md:p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col h-full max-h-[1000px] min-w-0">
           <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-3 mb-4">
             <h3 className="text-lg md:text-xl font-bold text-slate-900 flex items-center gap-2">
               生成结果 

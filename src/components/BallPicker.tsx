@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useState } from 'react';
+import React from 'react';
 
 interface BallPickerProps {
   max: number;
@@ -12,9 +12,6 @@ interface BallPickerProps {
 }
 
 export function BallPicker({ max, selected, fixed = [], onChange, onFixedChange, color }: BallPickerProps) {
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
-  const [isLongPress, setIsLongPress] = useState(false);
-
   const toggle = (num: number) => {
     if (selected.includes(num)) {
       // If it's fixed, also remove it from fixed
@@ -32,6 +29,8 @@ export function BallPicker({ max, selected, fixed = [], onChange, onFixedChange,
 
     if (fixed.includes(num)) {
       onFixedChange(fixed.filter(n => n !== num));
+      // Also remove from selected to completely unselect
+      onChange(selected.filter(n => n !== num));
     } else {
       // Must be selected first to be fixed, or auto-select it
       if (!selected.includes(num)) {
@@ -41,25 +40,10 @@ export function BallPicker({ max, selected, fixed = [], onChange, onFixedChange,
     }
   };
 
-  const handlePointerDown = (num: number) => {
-    setIsLongPress(false);
-    timerRef.current = setTimeout(() => {
-      setIsLongPress(true);
+  const handleClick = (num: number) => {
+    if (onFixedChange) {
       toggleFixed(num);
-      // Vibrate if supported
-      if (typeof navigator !== 'undefined' && navigator.vibrate) {
-        navigator.vibrate(50);
-      }
-    }, 500);
-  };
-
-  const handlePointerUp = (num: number) => {
-    if (timerRef.current) {
-      clearTimeout(timerRef.current);
-      timerRef.current = null;
-    }
-    
-    if (!isLongPress) {
+    } else {
       toggle(num);
     }
   };
@@ -85,13 +69,9 @@ export function BallPicker({ max, selected, fixed = [], onChange, onFixedChange,
         return (
           <div key={num} className="relative aspect-square w-full sm:w-10 sm:h-10">
             <button
-              onPointerDown={() => handlePointerDown(num)}
-              onPointerUp={() => handlePointerUp(num)}
-              onPointerLeave={() => {
-                if (timerRef.current) clearTimeout(timerRef.current);
-              }}
-              onContextMenu={(e) => e.preventDefault()} // Prevent context menu on long press
-              className={`w-full h-full rounded-full flex items-center justify-center font-medium border transition-all text-xs sm:text-base select-none touch-none ${
+              onClick={() => handleClick(num)}
+              onContextMenu={(e) => e.preventDefault()} 
+              className={`w-full h-full rounded-full flex items-center justify-center font-medium border transition-all text-xs sm:text-base select-none ${
                 isFixed ? fixedClasses : isSelected ? selectedClasses : colorClasses
               }`}
             >

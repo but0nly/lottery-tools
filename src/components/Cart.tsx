@@ -2,13 +2,14 @@
 
 import React, { useState, useEffect } from 'react';
 import { toast } from '@/lib/notification';
-import { ShoppingCart, X, Trash2, ChevronRight, Copy, Check } from 'lucide-react';
+import { ShoppingCart, X, Trash2, ChevronRight, Copy, Check, Bookmark } from 'lucide-react';
 import { storage, SavedCombination } from '@/lib/storage';
 
 export function Cart() {
   const [isOpen, setIsOpen] = useState(false);
   const [items, setItems] = useState<SavedCombination[]>([]);
   const [copiedId, setCopiedId] = useState<number | null>(null);
+  const [savedKeys, setSavedKeys] = useState<Set<string>>(new Set());
   
   // Draggable position state
   const [position, setPosition] = useState({ x: 0, y: 0 });
@@ -18,6 +19,11 @@ export function Cart() {
   const loadCart = async () => {
     const cartItems = await storage.getCart();
     setItems(cartItems);
+  };
+
+  const loadSaved = async () => {
+    const saved = await storage.getAllSaved();
+    setSavedKeys(new Set(saved.map(i => `${i.type}|${i.reds}|${i.blues}`)));
   };
 
   const getInitialPosition = () => {
@@ -45,6 +51,7 @@ export function Cart() {
 
   useEffect(() => {
     loadCart();
+    loadSaved();
     setPosition(getInitialPosition());
     
     const handleResize = () => {
@@ -72,7 +79,7 @@ export function Cart() {
   const handlePointerDown = (e: React.PointerEvent) => {
     setIsDragging(false);
     setDragStart({ x: e.clientX - position.x, y: e.clientY - position.y });
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   };
 
   const handlePointerMove = (e: React.PointerEvent) => {
@@ -88,7 +95,10 @@ export function Cart() {
   };
 
   const handlePointerUp = (e: React.PointerEvent) => {
-    (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+    const el = e.currentTarget as HTMLElement;
+    if (el.hasPointerCapture(e.pointerId)) {
+      el.releasePointerCapture(e.pointerId);
+    }
     
     if (isDragging) {
       const margin = 16;
@@ -108,6 +118,23 @@ export function Cart() {
   const handleRemove = async (id: number) => {
     await storage.removeFromCart(id);
     loadCart();
+  };
+
+  const handleSave = async (item: SavedCombination) => {
+    const key = `${item.type}|${item.reds}|${item.blues}`;
+    if (savedKeys.has(key)) {
+      await storage.deleteSavedByContent(item.type, item.reds, item.blues);
+      toast.show('已从收藏库移除', 'info');
+    } else {
+      await storage.save({
+        type: item.type,
+        reds: item.reds,
+        blues: item.blues,
+        toolUsed: item.toolUsed
+      });
+      toast.show('已保存到收藏库', 'success');
+    }
+    loadSaved();
   };
 
   const handleClear = async () => {
@@ -218,41 +245,55 @@ export function Cart() {
               <p className="font-medium">购物车空空如也</p>
             </div>
           ) : (
-            items.map((item) => (
-              <div key={item.id} className="p-4 bg-slate-50 rounded-2xl border border-slate-100 relative group">
-                <div className="flex items-center gap-2 mb-3">
-                  <span className={`text-[10px] font-black px-1.5 py-0.5 rounded border ${
-                    item.type === 'SSQ' ? 'text-rose-600 border-rose-200 bg-rose-50' : 'text-amber-600 border-amber-200 bg-amber-50'
-                  }`}>
-                    {item.type === 'SSQ' ? '双色球' : '大乐透'}
-                  </span>
-                  <span className="text-[10px] text-slate-400 font-mono">#{item.id}</span>
+            items.map((item) => {
+              const key = `${item.type}|${item.reds}|${item.blues}`;
+              const isSaved = savedKeys.has(key);
+              
+              return (
+                <div key={item.id} className="p-4 bg-slate-50 rounded-2xl border border-slate-100 relative group">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className={`text-[10px] font-black px-1.5 py-0.5 rounded border ${
+                      item.type === 'SSQ' ? 'text-rose-600 border-rose-200 bg-rose-50' : 'text-amber-600 border-amber-200 bg-amber-50'
+                    }`}>
+                      {item.type === 'SSQ' ? '双色球' : '大乐透'}
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-mono">#{item.id}</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5 mb-4">
+                    {item.reds.split(',').map((n, i) => (
+                      <span key={i} className="w-7 h-7 rounded-full bg-red-500 text-white flex items-center justify-center text-xs font-bold shadow-sm">{n}</span>
+                    ))}
+                    <div className="w-px h-4 bg-slate-200 mx-0.5 mt-1.5" />
+                    {item.blues.split(',').map((n, i) => (
+                      <span key={i} className="w-7 h-7 rounded-full bg-blue-500 text-white flex items-center justify-center text-xs font-bold shadow-sm">{n}</span>
+                    ))}
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <button 
+                      onClick={() => handleSave(item)}
+                      className={`p-2 rounded-lg transition-all shadow-sm ${
+                        isSaved ? 'text-blue-600 bg-blue-50' : 'text-slate-400 hover:text-blue-600 hover:bg-white'
+                      }`}
+                      title={isSaved ? "取消收藏" : "收藏方案"}
+                    >
+                      <Bookmark className={`w-4 h-4 ${isSaved ? 'fill-current' : ''}`} />
+                    </button>
+                    <button 
+                      onClick={() => copyToClipboard(item)}
+                      className="p-2 text-slate-400 hover:text-slate-900 hover:bg-white rounded-lg transition-all shadow-sm"
+                    >
+                      {copiedId === item.id ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
+                    </button>
+                    <button 
+                      onClick={() => handleRemove(item.id!)}
+                      className="p-2 text-slate-400 hover:text-rose-500 hover:bg-white rounded-lg transition-all shadow-sm"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
-                <div className="flex flex-wrap gap-1.5 mb-4">
-                  {item.reds.split(',').map((n, i) => (
-                    <span key={i} className="w-7 h-7 rounded-full bg-red-500 text-white flex items-center justify-center text-xs font-bold shadow-sm">{n}</span>
-                  ))}
-                  <div className="w-px h-4 bg-slate-200 mx-0.5 mt-1.5" />
-                  {item.blues.split(',').map((n, i) => (
-                    <span key={i} className="w-7 h-7 rounded-full bg-blue-500 text-white flex items-center justify-center text-xs font-bold shadow-sm">{n}</span>
-                  ))}
-                </div>
-                <div className="flex justify-end gap-2">
-                  <button 
-                    onClick={() => copyToClipboard(item)}
-                    className="p-2 text-slate-400 hover:text-slate-900 hover:bg-white rounded-lg transition-all shadow-sm"
-                  >
-                    {copiedId === item.id ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
-                  </button>
-                  <button 
-                    onClick={() => handleRemove(item.id!)}
-                    className="p-2 text-slate-400 hover:text-rose-500 hover:bg-white rounded-lg transition-all shadow-sm"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
 
