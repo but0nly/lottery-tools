@@ -1,3 +1,5 @@
+import { WheelingMode, FilterConditions } from './combinations';
+
 // Browser-based storage using IndexedDB
 const DB_NAME = 'LotteryToolsDB';
 const DB_VERSION = 3; // Increment version for new store
@@ -16,14 +18,10 @@ export interface LotteryRecord {
 
 export interface ReducerSettings {
   type: 'SSQ' | 'DLT';
-  wheelingMode: string;
+  wheelingMode: WheelingMode;
   reds: number[];
   blues: number[];
-  conditions: {
-    minSum?: number;
-    maxSum?: number;
-    maxConsecutive?: number;
-  };
+  conditions: FilterConditions;
 }
 
 export interface ReverseSettings {

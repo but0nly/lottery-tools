@@ -3,10 +3,32 @@ name: Deploy Next.js to Ubuntu Docker
 on:
   push:
     branches:
-      - main  # 当推送到 main 分支时触发（如果是 master 请自行修改）
+      - main
 
 jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+          
+      - name: Install dependencies
+        run: pnpm install
+        
+      - name: Build
+        run: pnpm run build
+
   deploy:
+    needs: build
     runs-on: ubuntu-latest
     steps:
       - name: SSH Deploy
