@@ -42,7 +42,7 @@ export function Cart() {
 
   const handleRemove = async (id: number) => {
     await storage.removeFromCart(id);
-    loadCartData();
+    refreshCart();
   };
 
   const handleSave = async (item: SavedCombination) => {
@@ -68,7 +68,7 @@ export function Cart() {
       message: '确定要清空购物车中的所有方案吗？',
       onConfirm: async () => {
         await storage.clearCart();
-        loadCartData();
+        refreshCart();
         toast.show('购物车已清空', 'success');
       }
     });
