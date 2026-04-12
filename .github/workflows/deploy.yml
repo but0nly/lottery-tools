@@ -22,12 +22,6 @@ jobs:
             # 拉取最新代码
             git pull origin main
             
-            # 重新构建并启动 Docker 容器 (假设你使用 docker-compose)
-            docker compose down
-            docker compose up -d --build
-            
-            # 如果你使用的是原生 docker 命令，可以替换为：
-            # docker stop next-app || true
-            # docker rm next-app || true
-            # docker build -t next-app-image .
-            # docker run -d -p 3000:3000 --name next-app next-app-image
+            # 重新构建并启动 Docker 容器
+            sudo docker compose up -d --build
+            sudo docker image prune -f
