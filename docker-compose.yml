@@ -1,0 +1,9 @@
+services:
+  lottery-tools:
+    build: .
+    container_name: lottery-tools
+    ports:
+      - "3000:3000"
+    restart: always
+    environment:
+      - NODE_ENV=production
