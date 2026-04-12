@@ -48,10 +48,10 @@ export default function Home() {
           </div>
           <h2 className="text-2xl font-bold text-slate-900 mb-3 tracking-tight">智能随机生成器</h2>
           <p className="text-slate-600 mb-6 leading-relaxed">
-            支持“定胆”随机生成，锁定心仪号码后补齐剩余空位，在数学概率中寻找属于你的惊喜。
+            支持“定胆”与“杀号”随机生成，锁定心仪号码并排除不看好的号码后补齐空位，在数学概率中寻找属于你的惊喜。
           </p>
           <ul className="space-y-3 mb-8 text-sm text-slate-500 flex-1">
-            <li className="flex items-center gap-2.5"><CheckCircle2 className="w-4 h-4 text-orange-500"/> 灵活一键定胆技术</li>
+            <li className="flex items-center gap-2.5"><CheckCircle2 className="w-4 h-4 text-orange-500"/> 灵活一键定胆与杀号</li>
             <li className="flex items-center gap-2.5"><CheckCircle2 className="w-4 h-4 text-orange-500"/> 一次生成 1-1000 注</li>
             <li className="flex items-center gap-2.5"><CheckCircle2 className="w-4 h-4 text-orange-500"/> 自定义号码池补全</li>
           </ul>

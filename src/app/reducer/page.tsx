@@ -3,10 +3,10 @@
 import { useEffect, useState, useCallback } from 'react';
 import { BallPicker } from '@/components/BallPicker';
 import { generateCombinations, LotteryType, FilterConditions, WheelingMode } from '@/lib/combinations';
-import { storage, SavedCombination } from '@/lib/storage';
+import { storage, ReducerSettings } from '@/lib/storage';
 import { refreshCart } from '@/components/Cart';
 import { toast } from '@/lib/notification';
-import { Save, CheckCircle2, AlertTriangle, Loader2, Plus, ShoppingCart, Bookmark, Shuffle, HelpCircle, Info, Calculator, Trash2 } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, Loader2, Plus, ShoppingCart, Bookmark, Shuffle, HelpCircle, Info, Calculator, Trash2 } from 'lucide-react';
 
 import { LotteryTabSwitcher } from '@/components/LotteryTabSwitcher';
 import { triggerFlyToCart } from '@/components/FlyToCartAnimation';
@@ -20,19 +20,30 @@ export default function ReducerPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [showWheelingTip, setShowWheelingTip] = useState(false);
   const [showFilterTip, setShowFilterTip] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
   
   // Track existing data for active states
   const [inCartKeys, setInCartKeys] = useState<Set<string>>(new Set());
   const [inSavedKeys, setInSavedKeys] = useState<Set<string>>(new Set());
 
   const loadExistingStates = useCallback(async () => {
-    const [cart, saved] = await Promise.all([
+    const [cart, saved, settings] = await Promise.all([
       storage.getCart(),
-      storage.getAllSaved()
+      storage.getAllSaved(),
+      storage.getSettings<ReducerSettings>('reducer_params')
     ]);
     
     setInCartKeys(new Set(cart.map(i => `${i.type}|${i.reds}|${i.blues}`)));
     setInSavedKeys(new Set(saved.map(i => `${i.type}|${i.reds}|${i.blues}`)));
+
+    if (settings) {
+      if (settings.type) setType(settings.type);
+      if (settings.wheelingMode) setWheelingMode(settings.wheelingMode);
+      if (settings.reds) setReds(settings.reds);
+      if (settings.blues) setBlues(settings.blues);
+      if (settings.conditions) setConditions(settings.conditions);
+    }
+    setIsInitialized(true);
   }, []);
 
   useEffect(() => {
@@ -46,6 +57,18 @@ export default function ReducerPage() {
     maxSum: undefined,
     maxConsecutive: undefined,
   });
+
+  // Save settings when they change
+  useEffect(() => {
+    if (!isInitialized) return;
+    storage.setSettings('reducer_params', {
+      type,
+      wheelingMode,
+      reds,
+      blues,
+      conditions
+    });
+  }, [type, wheelingMode, reds, blues, conditions, isInitialized]);
 
   const handleGenerate = () => {
     const minRed = type === 'SSQ' ? 6 : 5;
@@ -177,23 +200,6 @@ export default function ReducerPage() {
           </h1>
           <p className="text-slate-500 text-sm md:text-base ml-1">通过旋转矩阵算法降低购彩成本</p>
         </div>
-        
-        <div className="flex gap-3">
-          <button 
-            onClick={handleRandomPick}
-            className="flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-3 bg-white hover:bg-emerald-50 border border-slate-200 hover:border-emerald-200 text-slate-600 hover:text-emerald-600 rounded-2xl text-sm font-bold transition-all shadow-sm active:scale-[0.98]"
-          >
-            <Shuffle className="w-4 h-4" />
-            随机选号池
-          </button>
-          <button 
-            onClick={handleClear}
-            className="flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-3 bg-white hover:bg-rose-50 border border-slate-200 hover:border-rose-200 text-slate-600 hover:text-rose-600 rounded-2xl text-sm font-bold transition-all shadow-sm active:scale-[0.98]"
-          >
-            <Trash2 className="w-4 h-4" />
-            清空重选
-          </button>
-        </div>
       </div>
       
       <div className="mb-10 flex justify-center md:justify-start">
@@ -236,6 +242,23 @@ export default function ReducerPage() {
               onChange={setBlues} 
               color="blue" 
             />
+          </div>
+
+          <div className="flex gap-4">
+            <button 
+              onClick={handleRandomPick}
+              className="flex-1 flex items-center justify-center gap-2 px-5 py-4 bg-white/70 backdrop-blur-xl hover:bg-emerald-50 border border-white hover:border-emerald-200 text-slate-600 hover:text-emerald-600 rounded-[24px] text-sm font-black transition-all shadow-xl shadow-slate-200/50 active:scale-[0.98]"
+            >
+              <Shuffle className="w-4 h-4" />
+              随机选号池
+            </button>
+            <button 
+              onClick={handleClear}
+              className="flex-1 flex items-center justify-center gap-2 px-5 py-4 bg-white/70 backdrop-blur-xl hover:bg-rose-50 border border-white hover:border-rose-200 text-slate-600 hover:text-rose-600 rounded-[24px] text-sm font-black transition-all shadow-xl shadow-slate-200/50 active:scale-[0.98]"
+            >
+              <Trash2 className="w-4 h-4" />
+              清空重选
+            </button>
           </div>
 
           <div className="bg-white/70 backdrop-blur-xl p-6 rounded-[32px] shadow-xl shadow-slate-200/50 border border-white">

@@ -16,9 +16,9 @@ const navItems = [
 const getPageTitle = (pathname: string) => {
   const currentItem = navItems.find(item => item.href === pathname);
   return currentItem?.label === '库' ? '我的收藏库' : 
-         currentItem?.label === '缩水' ? '缩水选号' : 
-         currentItem?.label === '反向' ? '冷门组合生成器' : 
-         currentItem?.label === '随机' ? '随机选号' : 
+         currentItem?.label === '缩水' ? '组合缩水选号' : 
+         currentItem?.label === '反向' ? '反向冷门分析' : 
+         currentItem?.label === '随机' ? '智能随机选号' : 
          currentItem?.label || '彩通宝';
 };
 
@@ -104,7 +104,7 @@ export function MobileNav() {
   const pathname = usePathname();
 
   return (
-    <div className="md:hidden fixed bottom-6 left-0 right-0 px-4 z-50">
+    <div className="md:hidden fixed bottom-4 left-0 right-0 px-4 z-50">
       <nav className="bg-white/95 backdrop-blur-2xl border border-white shadow-[0_20px_60px_-15px_rgba(0,0,0,0.15)] shadow-slate-200/60 rounded-[32px] flex justify-around items-center h-[76px] px-2 max-w-lg mx-auto relative overflow-visible">
         {navItems.map((item) => {
           const isActive = pathname === item.href;
@@ -114,7 +114,7 @@ export function MobileNav() {
               <Link 
                 key={item.href} 
                 href={item.href} 
-                className="relative -top-8 flex flex-col items-center justify-center transition-transform active:scale-90"
+                className="relative -top-6 flex flex-col items-center justify-center transition-transform active:scale-90"
               >
                 <div className={`w-[72px] h-[72px] rounded-3xl flex items-center justify-center shadow-2xl transition-all ring-4 ring-white ${isActive ? 'bg-orange-500 shadow-orange-200' : 'bg-slate-950 shadow-slate-900/40'}`}>
                   <item.icon className="w-9 h-9 text-white" />
@@ -138,9 +138,6 @@ export function MobileNav() {
               <span className={`text-[10px] mt-1.5 font-bold transition-colors ${isActive ? 'text-slate-900' : 'text-slate-400'}`}>
                 {item.label}
               </span>
-              {isActive && (
-                <div className={`absolute bottom-2 w-1 h-1 rounded-full ${item.activeColor.replace('text-', 'bg-')} shadow-[0_0_8px_currentColor]`} />
-              )}
             </Link>
           );
         })}

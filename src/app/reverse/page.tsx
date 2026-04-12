@@ -8,24 +8,20 @@ import {
   DEFAULT_GAME_THEORY_CONFIG,
   GameTheoryConfig
 } from '@/lib/combinations';
-import { storage } from '@/lib/storage';
+import { storage, ReverseSettings } from '@/lib/storage';
 import { refreshCart } from '@/components/Cart';
 import { toast } from '@/lib/notification';
 import { 
   RefreshCw, 
-  Save, 
   CheckCircle2, 
   Zap, 
   BrainCircuit, 
   Users, 
-  Plus, 
-  Settings2, 
   Sliders, 
   Info, 
   Bookmark, 
   HelpCircle, 
   History, 
-  Trash2,
   ShoppingCart
 } from 'lucide-react';
 
@@ -40,6 +36,7 @@ export default function ReversePage() {
   const [showAlgorithmTip, setShowAlgorithmTip] = useState(false);
   const [result, setResult] = useState<{reds: number[], blues: number[]} | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
 
   // Track states for active buttons
   const [isInCart, setIsInCart] = useState(false);
@@ -49,29 +46,51 @@ export default function ReversePage() {
     if (!result) {
       setIsInCart(false);
       setIsSaved(false);
-      return;
+    } else {
+      const redsStr = result.reds.map(n => n.toString().padStart(2, '0')).join(',');
+      const bluesStr = result.blues.map(n => n.toString().padStart(2, '0')).join(',');
+      
+      const [cart, saved] = await Promise.all([
+        storage.getCart(),
+        storage.getAllSaved()
+      ]);
+
+      const cartMatch = cart.some(i => i.type === type && i.reds === redsStr && i.blues === bluesStr);
+      const savedMatch = saved.some(i => i.type === type && i.reds === redsStr && i.blues === bluesStr);
+
+      setIsInCart(cartMatch);
+      setIsSaved(savedMatch);
     }
-
-    const redsStr = result.reds.map(n => n.toString().padStart(2, '0')).join(',');
-    const bluesStr = result.blues.map(n => n.toString().padStart(2, '0')).join(',');
     
-    const [cart, saved] = await Promise.all([
-      storage.getCart(),
-      storage.getAllSaved()
-    ]);
-
-    const cartMatch = cart.some(i => i.type === type && i.reds === redsStr && i.blues === bluesStr);
-    const savedMatch = saved.some(i => i.type === type && i.reds === redsStr && i.blues === bluesStr);
-
-    setIsInCart(cartMatch);
-    setIsSaved(savedMatch);
-  }, [result, type]);
+    // Initial load of settings
+    if (!isInitialized) {
+      const settings = await storage.getSettings<ReverseSettings>('reverse_params');
+      if (settings) {
+        if (settings.type) setType(settings.type);
+        if (settings.mode) setMode(settings.mode);
+        if (settings.historySize) setHistorySize(settings.historySize);
+        if (settings.gtConfig) setGtConfig(settings.gtConfig);
+      }
+      setIsInitialized(true);
+    }
+  }, [result, type, isInitialized]);
 
   useEffect(() => {
     checkExistingStates();
     window.addEventListener('cart-updated', checkExistingStates);
     return () => window.removeEventListener('cart-updated', checkExistingStates);
   }, [checkExistingStates]);
+
+  // Save settings when they change
+  useEffect(() => {
+    if (!isInitialized) return;
+    storage.setSettings('reverse_params', {
+      type,
+      mode,
+      historySize,
+      gtConfig
+    });
+  }, [type, mode, historySize, gtConfig, isInitialized]);
 
   const handleCalculate = async () => {
     setIsSaved(false);
@@ -155,7 +174,7 @@ export default function ReversePage() {
   };
 
   const updateConfig = (key: keyof GameTheoryConfig, value: string) => {
-    const num = parseInt(value) || 0;
+    const num = parseFloat(value) || 0;
     setGtConfig(prev => ({ ...prev, [key]: num }));
   };
 
@@ -174,16 +193,6 @@ export default function ReversePage() {
           </h1>
           <p className="text-slate-500 text-sm md:text-base ml-1">基于博弈论与大数据规避大众心理热门号</p>
         </div>
-        
-        <div className="flex gap-3">
-          <button 
-            onClick={handleClear}
-            className="flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-3 bg-white hover:bg-rose-50 border border-slate-200 hover:border-rose-200 text-slate-600 hover:text-rose-600 rounded-2xl text-sm font-bold transition-all shadow-sm active:scale-[0.98]"
-          >
-            <Trash2 className="w-4 h-4" />
-            重置参数
-          </button>
-        </div>
       </div>
 
       <div className="mb-8 flex justify-center md:justify-start">
@@ -193,21 +202,20 @@ export default function ReversePage() {
         />
       </div>
 
-      <div className="inline-flex p-1.5 bg-slate-100/50 backdrop-blur-sm rounded-2xl mb-10 border border-slate-200/50">
-        <button 
+      <div className="flex w-full md:w-auto md:inline-flex p-1.5 bg-slate-100/50 backdrop-blur-sm rounded-2xl mb-10 border border-slate-200/50">
+        <button
           onClick={() => { setMode('GAME_THEORY'); handleClear(); }}
-          className={`px-6 py-2.5 rounded-xl font-black transition-all text-sm ${mode === 'GAME_THEORY' ? 'bg-white text-rose-600 shadow-md ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-700'}`}
+          className={`flex-1 md:flex-none px-6 py-2.5 rounded-xl font-black transition-all text-sm ${mode === 'GAME_THEORY' ? 'bg-white text-rose-600 shadow-md ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-700'}`}
         >
           心理避让 (博弈论)
         </button>
-        <button 
+        <button
           onClick={() => { setMode('FREQUENCY'); handleClear(); }}
-          className={`px-6 py-2.5 rounded-xl font-black transition-all text-sm ${mode === 'FREQUENCY' ? 'bg-white text-rose-600 shadow-md ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-700'}`}
+          className={`flex-1 md:flex-none px-6 py-2.5 rounded-xl font-black transition-all text-sm ${mode === 'FREQUENCY' ? 'bg-white text-rose-600 shadow-md ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-700'}`}
         >
           历史遗漏 (大数据)
         </button>
       </div>
-
       <div className="grid lg:grid-cols-2 gap-6 md:gap-8 min-w-0">
         <div className="space-y-6 min-w-0">
           <div className="bg-white/70 backdrop-blur-xl p-6 rounded-[32px] shadow-xl shadow-slate-200/50 border border-white">
@@ -280,15 +288,23 @@ export default function ReversePage() {
                   { label: '蓝月权重', key: 'blueMonthPenalty', desc: '1-12蓝球' },
                   { label: '蓝大数', key: 'blueLargeBonus', desc: '>12蓝球' },
                 ].map((item) => (
-                  <div key={item.key}>
-                    <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-[0.1em]">{item.label}</label>
+                  <div key={item.key} className="bg-slate-50/50 p-4 rounded-2xl border border-slate-100 flex flex-col gap-3 group/item hover:bg-white transition-colors duration-300">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{item.label}</label>
+                      <span className="text-xs font-black text-rose-600 bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-100 group-hover/item:scale-110 transition-transform">
+                        {gtConfig[item.key as keyof GameTheoryConfig]}
+                      </span>
+                    </div>
                     <input 
-                      type="number"
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.1"
                       value={gtConfig[item.key as keyof GameTheoryConfig]}
                       onChange={(e) => updateConfig(item.key as keyof GameTheoryConfig, e.target.value)}
-                      className="w-full bg-slate-50/50 border-2 border-slate-100 rounded-xl px-4 py-2.5 text-sm font-bold focus:border-rose-500 focus:bg-white outline-none transition-all shadow-inner"
+                      className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-rose-500 hover:accent-rose-600 transition-all"
                     />
-                    <p className="text-[10px] text-slate-400 mt-1.5 font-medium">{item.desc}</p>
+                    <p className="text-[10px] text-slate-400 font-medium">{item.desc}</p>
                   </div>
                 ))}
               </div>

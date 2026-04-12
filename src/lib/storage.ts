@@ -1,8 +1,9 @@
 // Browser-based storage using IndexedDB
 const DB_NAME = 'LotteryToolsDB';
-const DB_VERSION = 2; // Increment version for new store
+const DB_VERSION = 3; // Increment version for new store
 const STORE_SAVED = 'saved_combinations';
 const STORE_CART = 'cart_combinations';
+const STORE_SETTINGS = 'algorithm_settings';
 
 export interface LotteryRecord {
   id?: number;
@@ -11,6 +12,41 @@ export interface LotteryRecord {
   blues: string;
   toolUsed: 'REDUCER' | 'REVERSE' | 'RANDOM';
   createdAt: number;
+}
+
+export interface ReducerSettings {
+  type: 'SSQ' | 'DLT';
+  wheelingMode: string;
+  reds: number[];
+  blues: number[];
+  conditions: {
+    minSum?: number;
+    maxSum?: number;
+    maxConsecutive?: number;
+  };
+}
+
+export interface ReverseSettings {
+  type: 'SSQ' | 'DLT';
+  mode: 'FREQUENCY' | 'GAME_THEORY';
+  historySize: number;
+  gtConfig: {
+    monthPenalty: number;
+    birthdayPenalty: number;
+    luckyPenalty: number;
+    largeNumberBonus: number;
+    blueMonthPenalty: number;
+    blueLargeBonus: number;
+  };
+}
+
+export interface RandomSettings {
+  type: 'SSQ' | 'DLT';
+  fixedReds: number[];
+  fixedBlues: number[];
+  excludedReds?: number[];
+  excludedBlues?: number[];
+  betCount: number;
 }
 
 const openDB = (): Promise<IDBDatabase> => {
@@ -28,11 +64,37 @@ const openDB = (): Promise<IDBDatabase> => {
       if (!db.objectStoreNames.contains(STORE_CART)) {
         db.createObjectStore(STORE_CART, { keyPath: 'id', autoIncrement: true });
       }
+      if (!db.objectStoreNames.contains(STORE_SETTINGS)) {
+        db.createObjectStore(STORE_SETTINGS, { keyPath: 'key' });
+      }
     };
   });
 };
 
 export const storage = {
+  // Settings (Algorithm Parameters)
+  async getSettings<T>(key: string): Promise<T | null> {
+    const db = await openDB();
+    const transaction = db.transaction(STORE_SETTINGS, 'readonly');
+    const store = transaction.objectStore(STORE_SETTINGS);
+    return new Promise((resolve, reject) => {
+      const request = store.get(key);
+      request.onsuccess = () => resolve(request.result ? request.result.value : null);
+      request.onerror = () => reject(request.error);
+    });
+  },
+
+  async setSettings<T>(key: string, value: T) {
+    const db = await openDB();
+    const transaction = db.transaction(STORE_SETTINGS, 'readwrite');
+    const store = transaction.objectStore(STORE_SETTINGS);
+    return new Promise<void>((resolve, reject) => {
+      const request = store.put({ key, value });
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  },
+
   // Saved Combinations (Permanent)
   async save(combination: Omit<LotteryRecord, 'id' | 'createdAt'>) {
     const db = await openDB();
@@ -68,7 +130,7 @@ export const storage = {
   },
 
   async deleteSavedByContent(type: string, reds: string, blues: string) {
-    const db = await openDB();
+    await openDB();
     const items = await this.getAllSaved();
     const item = items.find(i => i.type === type && i.reds === reds && i.blues === blues);
     if (item && item.id !== undefined) {
@@ -78,7 +140,7 @@ export const storage = {
 
   // Cart Logic (Temporary Selection)
   async addToCart(combination: Omit<LotteryRecord, 'id' | 'createdAt'>) {
-    const db = await openDB();
+    await openDB();
     
     // Check for duplicates first
     const existing = await this.getCart();
@@ -92,6 +154,7 @@ export const storage = {
       return null; // Or throw error, but null is safer for batch ops
     }
 
+    const db = await openDB();
     const transaction = db.transaction(STORE_CART, 'readwrite');
     const store = transaction.objectStore(STORE_CART);
     return new Promise((resolve, reject) => {
@@ -124,7 +187,7 @@ export const storage = {
   },
 
   async removeFromCartByContent(type: string, reds: string, blues: string) {
-    const db = await openDB();
+    await openDB();
     const items = await this.getCart();
     const item = items.find(i => i.type === type && i.reds === reds && i.blues === blues);
     if (item && item.id !== undefined) {

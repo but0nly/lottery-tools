@@ -1,17 +1,22 @@
 "use client";
 
-import React from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 
 interface BallPickerProps {
   max: number;
   selected: number[];
   fixed?: number[]; // Fixed numbers (Dan Ma)
+  excluded?: number[]; // Excluded numbers (Sha Hao)
   onChange: (selected: number[]) => void;
   onFixedChange?: (fixed: number[]) => void;
+  onExcludedChange?: (excluded: number[]) => void;
   color: 'red' | 'blue';
 }
 
-export function BallPicker({ max, selected, fixed = [], onChange, onFixedChange, color }: BallPickerProps) {
+export function BallPicker({ max, selected, fixed = [], excluded = [], onChange, onFixedChange, onExcludedChange, color }: BallPickerProps) {
+  const [longPressNum, setLongPressNum] = useState<number | null>(null);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+
   const toggle = (num: number) => {
     if (selected.includes(num)) {
       // If it's fixed, also remove it from fixed
@@ -20,6 +25,10 @@ export function BallPicker({ max, selected, fixed = [], onChange, onFixedChange,
       }
       onChange(selected.filter((n) => n !== num));
     } else {
+      // If it was excluded, remove it from excluded
+      if (excluded.includes(num) && onExcludedChange) {
+        onExcludedChange(excluded.filter(n => n !== num));
+      }
       onChange([...selected, num].sort((a, b) => a - b));
     }
   };
@@ -32,6 +41,10 @@ export function BallPicker({ max, selected, fixed = [], onChange, onFixedChange,
       // Also remove from selected to completely unselect
       onChange(selected.filter(n => n !== num));
     } else {
+      // If it was excluded, remove it from excluded
+      if (excluded.includes(num) && onExcludedChange) {
+        onExcludedChange(excluded.filter(n => n !== num));
+      }
       // Must be selected first to be fixed, or auto-select it
       if (!selected.includes(num)) {
         onChange([...selected, num].sort((a, b) => a - b));
@@ -40,12 +53,49 @@ export function BallPicker({ max, selected, fixed = [], onChange, onFixedChange,
     }
   };
 
-  const handleClick = (num: number) => {
-    if (onFixedChange) {
-      toggleFixed(num);
+  const toggleExcluded = useCallback((num: number) => {
+    if (!onExcludedChange) return;
+
+    if (excluded.includes(num)) {
+      onExcludedChange(excluded.filter(n => n !== num));
     } else {
-      toggle(num);
+      // Cannot be selected or fixed if excluded
+      onChange(selected.filter(n => n !== num));
+      if (onFixedChange) {
+        onFixedChange(fixed.filter(n => n !== num));
+      }
+      onExcludedChange([...excluded, num].sort((a, b) => a - b));
     }
+  }, [excluded, onExcludedChange, fixed, onFixedChange, onChange, selected]);
+
+  const handlePointerDown = (num: number) => {
+    setLongPressNum(num);
+    timerRef.current = setTimeout(() => {
+      toggleExcluded(num);
+      setLongPressNum(null);
+    }, 600); // 600ms for long press
+  };
+
+  const handlePointerUp = (num: number) => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      if (longPressNum === num) {
+        // This was a click, not a long press
+        if (onFixedChange) {
+          toggleFixed(num);
+        } else {
+          toggle(num);
+        }
+      }
+    }
+    setLongPressNum(null);
+  };
+
+  const handlePointerCancel = () => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+    }
+    setLongPressNum(null);
   };
 
   const colorClasses = color === 'red' 
@@ -60,26 +110,37 @@ export function BallPicker({ max, selected, fixed = [], onChange, onFixedChange,
     ? 'bg-red-700 text-white border-red-800 ring-2 ring-red-300 ring-offset-1'
     : 'bg-blue-700 text-white border-blue-800 ring-2 ring-blue-300 ring-offset-1';
 
+  const excludedClasses = 'bg-slate-100 text-slate-400 border-slate-200 opacity-60 scale-95';
+
   return (
     <div className="grid grid-cols-7 sm:flex sm:flex-wrap gap-2">
       {Array.from({ length: max }, (_, i) => i + 1).map((num) => {
         const isSelected = selected.includes(num);
         const isFixed = fixed.includes(num);
+        const isExcluded = excluded.includes(num);
         
         return (
           <div key={num} className="relative aspect-square w-full sm:w-10 sm:h-10">
             <button
-              onClick={() => handleClick(num)}
+              onPointerDown={() => handlePointerDown(num)}
+              onPointerUp={() => handlePointerUp(num)}
+              onPointerLeave={handlePointerCancel}
+              onPointerCancel={handlePointerCancel}
               onContextMenu={(e) => e.preventDefault()} 
-              className={`w-full h-full rounded-full flex items-center justify-center font-medium border transition-all text-xs sm:text-base select-none ${
-                isFixed ? fixedClasses : isSelected ? selectedClasses : colorClasses
-              }`}
+              className={`w-full h-full rounded-full flex items-center justify-center font-medium border transition-all text-xs sm:text-base select-none touch-none ${
+                isExcluded ? excludedClasses : isFixed ? fixedClasses : isSelected ? selectedClasses : colorClasses
+              } ${longPressNum === num ? 'scale-90 brightness-90' : ''}`}
             >
               {num.toString().padStart(2, '0')}
             </button>
             {isFixed && (
               <span className="absolute -top-1 -right-1 bg-yellow-400 text-[8px] sm:text-[10px] px-1 rounded-sm text-slate-900 font-bold leading-tight border border-white shadow-sm pointer-events-none">
                 胆
+              </span>
+            )}
+            {isExcluded && (
+              <span className="absolute -top-1 -right-1 bg-slate-400 text-[8px] sm:text-[10px] px-1 rounded-sm text-white font-bold leading-tight border border-white shadow-sm pointer-events-none">
+                杀
               </span>
             )}
           </div>

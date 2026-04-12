@@ -234,12 +234,12 @@ export interface GameTheoryConfig {
 }
 
 export const DEFAULT_GAME_THEORY_CONFIG: GameTheoryConfig = {
-  monthPenalty: 50,
-  birthdayPenalty: 30,
-  luckyPenalty: 20,
-  largeNumberBonus: 40,
-  blueMonthPenalty: 30,
-  blueLargeBonus: 20
+  monthPenalty: 0.4,
+  birthdayPenalty: 0.3,
+  luckyPenalty: 0.2,
+  largeNumberBonus: 0.4,
+  blueMonthPenalty: 0.3,
+  blueLargeBonus: 0.2
 };
 
 /**
@@ -266,7 +266,7 @@ export function generateGameTheoryCombination(
     if ([6, 8, 16, 18, 26, 28].includes(n)) score += config.luckyPenalty;
     
     // Edge numbers (often overlooked)
-    if (n === 1 || n === maxRed) score -= 5;
+    if (n === 1 || n === maxRed) score -= 0.05;
     
     // High numbers (above 31) are less chosen by humans
     if (n > 31) score -= config.largeNumberBonus;
@@ -277,7 +277,7 @@ export function generateGameTheoryCombination(
   const getBlueScore = (n: number) => {
     let score = 0;
     if (n <= 12) score += config.blueMonthPenalty; // months
-    if ([6, 8].includes(n)) score += 10; // basic lucky
+    if ([6, 8].includes(n)) score += 0.1; // basic lucky
     if (n > 12) score -= config.blueLargeBonus;
     return score;
   };
@@ -287,8 +287,8 @@ export function generateGameTheoryCombination(
   const allBlues = Array.from({ length: maxBlue }, (_, i) => i + 1);
 
   // We add some randomness to avoid giving the exact same "unpopular" set to everyone
-  const sortedReds = allReds.sort((a, b) => (getRedScore(a) + Math.random() * 20) - (getRedScore(b) + Math.random() * 20));
-  const sortedBlues = allBlues.sort((a, b) => (getBlueScore(a) + Math.random() * 20) - (getBlueScore(b) + Math.random() * 20));
+  const sortedReds = allReds.sort((a, b) => (getRedScore(a) + Math.random() * 0.2) - (getRedScore(b) + Math.random() * 0.2));
+  const sortedBlues = allBlues.sort((a, b) => (getBlueScore(a) + Math.random() * 0.2) - (getBlueScore(b) + Math.random() * 0.2));
 
   return {
     reds: sortedReds.slice(0, reqRed).sort((a, b) => a - b),
@@ -297,13 +297,15 @@ export function generateGameTheoryCombination(
 }
 
 /**
- * Generate random combinations with fixed numbers (Dan Ma)
+ * Generate random combinations with fixed numbers (Dan Ma) and excluded numbers (Sha Hao)
  */
 export function generateRandomWithFixed(
   type: LotteryType,
   fixedReds: number[],
   fixedBlues: number[],
-  count: number = 1
+  count: number = 1,
+  excludedReds: number[] = [],
+  excludedBlues: number[] = []
 ): { reds: number[]; blues: number[] }[] {
   const maxRed = type === 'SSQ' ? 33 : 35;
   const maxBlue = type === 'SSQ' ? 16 : 12;
@@ -311,8 +313,12 @@ export function generateRandomWithFixed(
   const reqBlue = type === 'SSQ' ? 1 : 2;
 
   const results: { reds: number[]; blues: number[] }[] = [];
-  const allReds = Array.from({ length: maxRed }, (_, i) => i + 1).filter(n => !fixedReds.includes(n));
-  const allBlues = Array.from({ length: maxBlue }, (_, i) => i + 1).filter(n => !fixedBlues.includes(n));
+  
+  // Available pool: exclude both fixed (already picked) and excluded (don't want to pick)
+  const allReds = Array.from({ length: maxRed }, (_, i) => i + 1)
+    .filter(n => !fixedReds.includes(n) && !excludedReds.includes(n));
+  const allBlues = Array.from({ length: maxBlue }, (_, i) => i + 1)
+    .filter(n => !fixedBlues.includes(n) && !excludedBlues.includes(n));
 
   for (let i = 0; i < count; i++) {
     const randomReds = [...allReds].sort(() => Math.random() - 0.5).slice(0, reqRed - fixedReds.length);

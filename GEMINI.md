@@ -69,9 +69,10 @@ The application follows a premium, data-driven "Modern Vibrant" (方案 C) aesth
 - **Interactive States:** Icons should scale on hover (`hover:scale-110`). Tactile feedback on click (`active:scale-95`).
 
 ## Data Models
-Data is stored in IndexedDB with two main stores:
+Data is stored in IndexedDB with three main stores:
 - `saved_combinations`: Stores type, red/blue numbers, tool used, and timestamp.
 - `cart_combinations`: Stores temporary selections for the cart.
+- `algorithm_settings`: Stores persisted algorithm parameters for each tool (key-value pairs).
 
 ## Notes
 - The "Rotation Matrix" calculation can be CPU-intensive for large number pools (>16 numbers); optimizations or limits should be maintained.

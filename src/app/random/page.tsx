@@ -3,10 +3,10 @@
 import { useEffect, useState, useCallback } from 'react';
 import { BallPicker } from '@/components/BallPicker';
 import { LotteryType, generateRandomWithFixed } from '@/lib/combinations';
-import { storage } from '@/lib/storage';
+import { storage, RandomSettings } from '@/lib/storage';
 import { refreshCart } from '@/components/Cart';
 import { toast } from '@/lib/notification';
-import { Save, CheckCircle2, Loader2, Plus, ShoppingCart, Bookmark, Shuffle, Trash2 } from 'lucide-react';
+import { CheckCircle2, Loader2, Plus, ShoppingCart, Bookmark, Shuffle, Trash2 } from 'lucide-react';
 
 import { LotteryTabSwitcher } from '@/components/LotteryTabSwitcher';
 import { triggerFlyToCart } from '@/components/FlyToCartAnimation';
@@ -17,22 +17,36 @@ export default function RandomPage() {
   const [blues, setBlues] = useState<number[]>([]);
   const [fixedReds, setFixedReds] = useState<number[]>([]);
   const [fixedBlues, setFixedBlues] = useState<number[]>([]);
+  const [excludedReds, setExcludedReds] = useState<number[]>([]);
+  const [excludedBlues, setExcludedBlues] = useState<number[]>([]);
   const [betCount, setBetCount] = useState<number>(5);
   const [results, setResults] = useState<{reds: number[], blues: number[]}[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
   
   // Track existing data for active states
   const [inCartKeys, setInCartKeys] = useState<Set<string>>(new Set());
   const [inSavedKeys, setInSavedKeys] = useState<Set<string>>(new Set());
 
   const loadExistingStates = useCallback(async () => {
-    const [cart, saved] = await Promise.all([
+    const [cart, saved, settings] = await Promise.all([
       storage.getCart(),
-      storage.getAllSaved()
+      storage.getAllSaved(),
+      storage.getSettings<RandomSettings>('random_params')
     ]);
     
     setInCartKeys(new Set(cart.map(i => `${i.type}|${i.reds}|${i.blues}`)));
     setInSavedKeys(new Set(saved.map(i => `${i.type}|${i.reds}|${i.blues}`)));
+
+    if (settings) {
+      if (settings.type) setType(settings.type);
+      if (settings.fixedReds) setFixedReds(settings.fixedReds);
+      if (settings.fixedBlues) setFixedBlues(settings.fixedBlues);
+      if (settings.excludedReds) setExcludedReds(settings.excludedReds);
+      if (settings.excludedBlues) setExcludedBlues(settings.excludedBlues);
+      if (settings.betCount) setBetCount(settings.betCount);
+    }
+    setIsInitialized(true);
   }, []);
 
   useEffect(() => {
@@ -41,9 +55,26 @@ export default function RandomPage() {
     return () => window.removeEventListener('cart-updated', loadExistingStates);
   }, [loadExistingStates]);
 
+  // Save settings when they change
+  useEffect(() => {
+    if (!isInitialized) return;
+    storage.setSettings('random_params', {
+      type,
+      fixedReds,
+      fixedBlues,
+      excludedReds,
+      excludedBlues,
+      betCount
+    });
+  }, [type, fixedReds, fixedBlues, excludedReds, excludedBlues, betCount, isInitialized]);
+
   const handleGenerate = () => {
     const maxFixedRed = type === 'SSQ' ? 5 : 4;
     const maxFixedBlue = type === 'SSQ' ? 1 : 2;
+    const reqRed = type === 'SSQ' ? 6 : 5;
+    const reqBlue = type === 'SSQ' ? 1 : 2;
+    const totalRed = type === 'SSQ' ? 33 : 35;
+    const totalBlue = type === 'SSQ' ? 16 : 12;
 
     if (fixedReds.length > maxFixedRed) {
       toast.show(`红球胆码不能超过 ${maxFixedRed} 个`, 'warning');
@@ -51,6 +82,16 @@ export default function RandomPage() {
     }
     if (fixedBlues.length > maxFixedBlue) {
       toast.show(`蓝球胆码不能超过 ${maxFixedBlue} 个`, 'warning');
+      return;
+    }
+
+    // Validation for excluded numbers
+    if (totalRed - excludedReds.length < reqRed) {
+      toast.show(`排除红球过多，剩余号码不足以组成一注`, 'warning');
+      return;
+    }
+    if (totalBlue - excludedBlues.length < reqBlue) {
+      toast.show(`排除蓝球过多，剩余号码不足以组成一注`, 'warning');
       return;
     }
 
@@ -64,7 +105,7 @@ export default function RandomPage() {
     // Slight delay for UX
     setTimeout(() => {
       try {
-        const generated = generateRandomWithFixed(type, fixedReds, fixedBlues, betCount);
+        const generated = generateRandomWithFixed(type, fixedReds, fixedBlues, betCount, excludedReds, excludedBlues);
         setResults(generated);
         toast.show(`已随机生成 ${betCount} 注号码`, 'success');
       } catch (e) {
@@ -81,6 +122,8 @@ export default function RandomPage() {
     setBlues([]);
     setFixedReds([]);
     setFixedBlues([]);
+    setExcludedReds([]);
+    setExcludedBlues([]);
     setResults([]);
   };
 
@@ -134,17 +177,7 @@ export default function RandomPage() {
             </div>
             智能随机选号
           </h1>
-          <p className="text-slate-500 text-sm md:text-base ml-1">支持“定胆”补全，在概率中寻找惊喜</p>
-        </div>
-        
-        <div className="flex gap-3">
-          <button 
-            onClick={handleClear}
-            className="flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-3 bg-white hover:bg-rose-50 border border-slate-200 hover:border-rose-200 text-slate-600 hover:text-rose-600 rounded-2xl text-sm font-bold transition-all shadow-sm active:scale-[0.98]"
-          >
-            <Trash2 className="w-4 h-4" />
-            清空重置
-          </button>
+          <p className="text-slate-500 text-sm md:text-base ml-1">支持“定胆”与“杀号”，在概率中寻找惊喜</p>
         </div>
       </div>
       
@@ -162,16 +195,19 @@ export default function RandomPage() {
               <h3 className="text-lg font-bold flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]"></span>
-                  设置红球胆码 <span className="text-slate-400 font-medium ml-1">({fixedReds.length})</span>
+                  设置红球 <span className="text-slate-400 font-medium ml-1">({fixedReds.length} 胆, {excludedReds.length} 杀)</span>
                 </div>
+                <div className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">长按球号码排除(杀号)</div>
               </h3>
             </div>
             <BallPicker 
               max={type === 'SSQ' ? 33 : 35} 
               selected={reds} 
               fixed={fixedReds}
+              excluded={excludedReds}
               onChange={setReds} 
               onFixedChange={setFixedReds}
+              onExcludedChange={setExcludedReds}
               color="red" 
             />
           </div>
@@ -181,18 +217,31 @@ export default function RandomPage() {
               <h3 className="text-lg font-bold flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]"></span>
-                  设置蓝球胆码 <span className="text-slate-400 font-medium ml-1">({fixedBlues.length})</span>
+                  设置蓝球 <span className="text-slate-400 font-medium ml-1">({fixedBlues.length} 胆, {excludedBlues.length} 杀)</span>
                 </div>
+                <div className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">长按球号码排除(杀号)</div>
               </h3>
             </div>
             <BallPicker 
               max={type === 'SSQ' ? 16 : 12} 
               selected={blues} 
               fixed={fixedBlues}
+              excluded={excludedBlues}
               onChange={setBlues} 
               onFixedChange={setFixedBlues}
+              onExcludedChange={setExcludedBlues}
               color="blue" 
             />
+          </div>
+
+          <div className="flex">
+            <button 
+              onClick={handleClear}
+              className="flex-1 flex items-center justify-center gap-2 px-5 py-4 bg-white/70 backdrop-blur-xl hover:bg-rose-50 border border-white hover:border-rose-200 text-slate-600 hover:text-rose-600 rounded-[24px] text-sm font-black transition-all shadow-xl shadow-slate-200/50 active:scale-[0.98]"
+            >
+              <Trash2 className="w-4 h-4" />
+              清空重置
+            </button>
           </div>
 
           <div className="bg-white/70 backdrop-blur-xl p-6 rounded-[32px] shadow-xl shadow-slate-200/50 border border-white">
