@@ -85,7 +85,7 @@ export default function SavedPage() {
       <div className="absolute top-0 right-0 -z-10 w-96 h-96 bg-indigo-50 rounded-full blur-3xl opacity-50 -mr-24 -mt-24" />
       
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10 md:mb-16 md:pr-20">
-        <div className="flex items-center gap-4">
+        <div className="hidden md:flex items-center gap-4">
           <div className="w-14 h-14 md:w-16 md:h-16 bg-gradient-to-br from-indigo-500 to-blue-600 text-white rounded-2xl flex items-center justify-center shadow-xl shadow-indigo-200">
             <Bookmark className="w-7 h-7 md:w-8 md:h-8" />
           </div>

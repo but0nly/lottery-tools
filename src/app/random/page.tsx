@@ -169,7 +169,7 @@ export default function RandomPage() {
       {/* Background Blobs */}
       <div className="absolute top-0 right-0 -z-10 w-96 h-96 bg-orange-50 rounded-full blur-3xl opacity-50 -mr-24 -mt-24" />
       
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10 md:pr-20">
+      <div className="hidden md:flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10 md:pr-20">
         <div className="flex flex-col gap-2">
           <h1 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight flex items-center gap-3">
             <div className="w-12 h-12 bg-gradient-to-br from-orange-400 to-amber-500 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-orange-200">

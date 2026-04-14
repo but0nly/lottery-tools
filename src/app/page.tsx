@@ -8,7 +8,7 @@ export default function Home() {
       <div className="absolute top-0 right-0 -z-10 w-[500px] h-[500px] bg-blue-100/50 rounded-full blur-3xl opacity-60 -mr-48 -mt-48" />
       <div className="absolute bottom-0 left-0 -z-10 w-[400px] h-[400px] bg-purple-100/50 rounded-full blur-3xl opacity-60 -ml-32 -mb-32" />
 
-      <header className="mb-16 relative">
+      <header className="hidden md:block mb-16 relative">
         <div className="inline-block px-4 py-1.5 mb-6 text-sm font-semibold tracking-wide text-blue-600 uppercase bg-blue-50 rounded-full">
           智能选号 · 数据驱动
         </div>
