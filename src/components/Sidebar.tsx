@@ -111,8 +111,8 @@ export function MobileNav() {
   }, []);
 
   return (
-    <div className="md:hidden fixed bottom-4 left-0 right-0 px-4 z-50">
-      <nav className="bg-white/95 backdrop-blur-2xl border border-white shadow-[0_20px_60px_-15px_rgba(0,0,0,0.15)] shadow-slate-200/60 rounded-[32px] flex justify-around items-center h-[76px] px-2 max-w-lg mx-auto relative overflow-visible">
+    <div className="md:hidden fixed bottom-3 left-0 right-0 px-6 z-50">
+      <nav className="bg-white/95 backdrop-blur-2xl border border-white/50 shadow-[0_15px_50px_-12px_rgba(0,0,0,0.15)] rounded-[28px] flex justify-around items-center h-[64px] px-1 max-w-md mx-auto relative overflow-visible">
         {navItems.map((item) => {
           const isActive = pathname === item.href;
           
@@ -122,12 +122,12 @@ export function MobileNav() {
                 key={item.href} 
                 href={item.href} 
                 onClick={handleDiceClick}
-                className="relative -top-5 flex flex-col items-center justify-center transition-transform active:scale-90"
+                className="relative -top-3.5 flex flex-col items-center justify-center transition-transform active:scale-90"
               >
-                <div className={`w-[60px] h-[60px] rounded-2xl flex items-center justify-center shadow-2xl transition-all ring-4 ring-white ${isActive ? 'bg-orange-500 shadow-orange-200' : 'bg-slate-950 shadow-slate-900/40'}`}>
-                  <item.icon className={`w-7 h-7 text-white ${isShaking ? 'animate-shake' : ''}`} />
+                <div className={`w-[52px] h-[52px] rounded-2xl flex items-center justify-center shadow-2xl transition-all ring-4 ring-white ${isActive ? 'bg-orange-500 shadow-orange-200' : 'bg-slate-950 shadow-slate-900/40'}`}>
+                  <item.icon className={`w-6 h-6 text-white ${isShaking ? 'animate-shake' : ''}`} />
                 </div>
-                <span className={`text-[10px] mt-2 font-black tracking-widest uppercase transition-colors ${isActive ? 'text-orange-600' : 'text-slate-500'}`}>
+                <span className={`text-[9px] mt-1 font-black tracking-widest uppercase transition-colors ${isActive ? 'text-orange-600' : 'text-slate-500'}`}>
                   {item.label}
                 </span>
               </Link>
@@ -138,12 +138,12 @@ export function MobileNav() {
             <Link 
               key={item.href} 
               href={item.href} 
-              className="flex flex-col items-center justify-center flex-1 h-full py-2 transition-all active:scale-95 group relative"
+              className="flex flex-col items-center justify-center flex-1 h-full transition-all active:scale-95 group relative"
             >
-              <div className={`p-2.5 rounded-2xl transition-all ${isActive ? 'bg-slate-100 scale-110 shadow-inner' : 'group-hover:bg-slate-50/50'}`}>
+              <div className={`p-2 rounded-xl transition-all ${isActive ? 'bg-slate-100 scale-105 shadow-inner' : 'group-hover:bg-slate-50/50'}`}>
                 <item.icon className={`w-5 h-5 transition-colors ${isActive ? `${item.activeColor}` : 'text-slate-400'}`} />
               </div>
-              <span className={`text-[10px] mt-1.5 font-bold transition-colors ${isActive ? 'text-slate-900' : 'text-slate-400'}`}>
+              <span className={`text-[9px] mt-0.5 font-bold transition-colors ${isActive ? 'text-slate-900' : 'text-slate-400'}`}>
                 {item.label}
               </span>
             </Link>
