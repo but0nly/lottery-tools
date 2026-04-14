@@ -26,11 +26,12 @@ export function BallPicker({ max, selected, fixed = [], excluded = [], onChange,
         onFixedChange(fixed.filter(n => n !== num));
       }
       onChange(selected.filter((n) => n !== num));
-    } else {
-      // If it was excluded, remove it from excluded
-      if (excluded.includes(num) && onExcludedChange) {
+    } else if (excluded.includes(num)) {
+      // If it was excluded, just return to normal
+      if (onExcludedChange) {
         onExcludedChange(excluded.filter(n => n !== num));
       }
+    } else {
       onChange([...selected, num].sort((a, b) => a - b));
     }
   };
@@ -42,11 +43,12 @@ export function BallPicker({ max, selected, fixed = [], excluded = [], onChange,
       onFixedChange(fixed.filter(n => n !== num));
       // Also remove from selected to completely unselect
       onChange(selected.filter(n => n !== num));
-    } else {
-      // If it was excluded, remove it from excluded
-      if (excluded.includes(num) && onExcludedChange) {
+    } else if (excluded.includes(num)) {
+      // If it was excluded, just return to normal
+      if (onExcludedChange) {
         onExcludedChange(excluded.filter(n => n !== num));
       }
+    } else {
       // Must be selected first to be fixed, or auto-select it
       if (!selected.includes(num)) {
         onChange([...selected, num].sort((a, b) => a - b));
