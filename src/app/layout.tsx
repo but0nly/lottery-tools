@@ -27,7 +27,7 @@ export default function RootLayout({
           <DesktopSidebar />
 
           {/* 中间伸缩滚动区 */}
-          <main className="flex-1 overflow-y-auto w-full relative">
+          <main className="flex-1 overflow-y-auto w-full relative overscroll-behavior-none">
             <div className="hidden md:flex absolute top-6 right-8 z-40">
               <CartButton className="bg-white shadow-md hover:shadow-lg rounded-full p-3 text-slate-600 hover:text-slate-900 transition-all border border-slate-100" />
             </div>

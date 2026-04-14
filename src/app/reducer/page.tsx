@@ -406,7 +406,7 @@ export default function ReducerPage() {
             )}
           </div>
 
-          <div className="flex-1 overflow-y-auto pr-2 space-y-4 custom-scrollbar">
+          <div className="flex-1 overflow-y-auto pr-2 space-y-4 custom-scrollbar overscroll-behavior-none">
             {results.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-slate-400 space-y-6">
                 <div className="w-24 h-24 bg-slate-50/50 rounded-full flex items-center justify-center shadow-inner">
