@@ -16,6 +16,8 @@ interface BallPickerProps {
 export function BallPicker({ max, selected, fixed = [], excluded = [], onChange, onFixedChange, onExcludedChange, color }: BallPickerProps) {
   const [longPressNum, setLongPressNum] = useState<number | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const startPosRef = useRef<{ x: number, y: number } | null>(null);
+  const MOVE_THRESHOLD = 10; // 10px threshold to distinguish between click and scroll
 
   const toggle = (num: number) => {
     if (selected.includes(num)) {
@@ -68,19 +70,38 @@ export function BallPicker({ max, selected, fixed = [], excluded = [], onChange,
     }
   }, [excluded, onExcludedChange, fixed, onFixedChange, onChange, selected]);
 
-  const handlePointerDown = (num: number) => {
+  const handlePointerDown = (e: React.PointerEvent, num: number) => {
     setLongPressNum(num);
+    startPosRef.current = { x: e.clientX, y: e.clientY };
+    
     timerRef.current = setTimeout(() => {
       toggleExcluded(num);
       setLongPressNum(null);
     }, 600); // 600ms for long press
   };
 
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!startPosRef.current || !longPressNum) return;
+    
+    const dx = e.clientX - startPosRef.current.x;
+    const dy = e.clientY - startPosRef.current.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    
+    if (distance > MOVE_THRESHOLD) {
+      // User is scrolling/moving, cancel the long press and click
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+      }
+      setLongPressNum(null);
+      startPosRef.current = null;
+    }
+  };
+
   const handlePointerUp = (num: number) => {
     if (timerRef.current) {
       clearTimeout(timerRef.current);
       if (longPressNum === num) {
-        // This was a click, not a long press
+        // This was a click, not a long press or scroll
         if (onFixedChange) {
           toggleFixed(num);
         } else {
@@ -89,6 +110,7 @@ export function BallPicker({ max, selected, fixed = [], excluded = [], onChange,
       }
     }
     setLongPressNum(null);
+    startPosRef.current = null;
   };
 
   const handlePointerCancel = () => {
@@ -96,6 +118,7 @@ export function BallPicker({ max, selected, fixed = [], excluded = [], onChange,
       clearTimeout(timerRef.current);
     }
     setLongPressNum(null);
+    startPosRef.current = null;
   };
 
   const colorClasses = color === 'red' 
@@ -122,12 +145,13 @@ export function BallPicker({ max, selected, fixed = [], excluded = [], onChange,
         return (
           <div key={num} className="relative aspect-square w-full sm:w-10 sm:h-10">
             <button
-              onPointerDown={() => handlePointerDown(num)}
+              onPointerDown={(e) => handlePointerDown(e, num)}
+              onPointerMove={handlePointerMove}
               onPointerUp={() => handlePointerUp(num)}
               onPointerLeave={handlePointerCancel}
               onPointerCancel={handlePointerCancel}
               onContextMenu={(e) => e.preventDefault()} 
-              className={`w-full h-full rounded-full flex items-center justify-center font-medium border transition-all text-xs sm:text-base select-none touch-none ${
+              className={`w-full h-full rounded-full flex items-center justify-center font-medium border transition-all text-xs sm:text-base select-none touch-manipulation ${
                 isExcluded ? excludedClasses : isFixed ? fixedClasses : isSelected ? selectedClasses : colorClasses
               } ${longPressNum === num ? 'scale-90 brightness-90' : ''}`}
             >
