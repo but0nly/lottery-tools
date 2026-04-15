@@ -7,12 +7,12 @@ import { LotteryType, generateRandomWithFixed } from '@/lib/combinations';
 import { storage, RandomSettings } from '@/lib/storage';
 import { toast } from '@/lib/notification';
 import { CheckCircle2, Loader2, Plus, Shuffle, Trash2 } from 'lucide-react';
+import { useLotteryContext } from '@/app/LotteryContext';
 
-import { LotteryTabSwitcher } from '@/components/LotteryTabSwitcher';
 import { triggerFlyToCart } from '@/components/FlyToCartAnimation';
 
 export default function RandomPage() {
-  const [type, setType] = useState<LotteryType>('SSQ');
+  const { activeType: type } = useLotteryContext();
   const [reds, setReds] = useState<number[]>([]);
   const [blues, setBlues] = useState<number[]>([]);
   const [fixedReds, setFixedReds] = useState<number[]>([]);
@@ -36,16 +36,17 @@ export default function RandomPage() {
     
     setInSelectionKeys(new Set(selection.map(i => `${i.type}|${i.reds}|${i.blues}`)));
 
-    if (settings) {
-      if (settings.type) setType(settings.type);
+    if (settings && settings.type === type) {
       if (settings.fixedReds) setFixedReds(settings.fixedReds);
       if (settings.fixedBlues) setFixedBlues(settings.fixedBlues);
       if (settings.excludedReds) setExcludedReds(settings.excludedReds);
       if (settings.excludedBlues) setExcludedBlues(settings.excludedBlues);
       if (settings.betCount) setBetCount(settings.betCount);
+    } else {
+      handleClear();
     }
     setIsInitialized(true);
-  }, []);
+  }, [type]);
 
   useEffect(() => {
     loadExistingStates();
@@ -165,13 +166,6 @@ export default function RandomPage() {
         </div>
       </div>
       
-      <div className="mb-10 flex justify-center md:justify-start">
-        <LotteryTabSwitcher 
-          activeTab={type} 
-          onTabChange={(newType) => { setType(newType); handleClear(); }} 
-        />
-      </div>
-
       <div className="grid lg:grid-cols-2 gap-6 md:gap-8 min-w-0">
         <div className="space-y-6 min-w-0">
           <div className="bg-white/70 backdrop-blur-xl p-6 rounded-[32px] shadow-xl shadow-slate-200/50 border border-white">

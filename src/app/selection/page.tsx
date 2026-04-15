@@ -10,7 +10,7 @@ import {
 import Link from 'next/link';
 import { storage, SavedCombination } from '@/lib/storage';
 import { LotteryType } from '@/lib/combinations';
-import { LotteryTabSwitcher } from '@/components/LotteryTabSwitcher';
+import { useLotteryContext } from '@/app/LotteryContext';
 import { motion, AnimatePresence, useMotionValue, useTransform, PanInfo } from 'framer-motion';
 import confetti from 'canvas-confetti';
 
@@ -170,25 +170,26 @@ const SwipeableItem = ({
 export default function SavedPage() {
   const [records, setRecords] = useState<SavedCombination[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<LotteryType>('SSQ');
+  const { activeType: activeTab } = useLotteryContext();
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
-  const loadRecords = async () => {
-    setLoading(true);
+  const loadRecords = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const data = await storage.getSelection();
       setRecords(data);
     } catch (error) {
       console.error('Failed to load records:', error);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
     loadRecords();
-    window.addEventListener('selection-updated', loadRecords);
-    return () => window.removeEventListener('selection-updated', loadRecords);
+    const handleUpdate = () => loadRecords(true);
+    window.addEventListener('selection-updated', handleUpdate);
+    return () => window.removeEventListener('selection-updated', handleUpdate);
   }, []);
 
   const handleDelete = async (id: number) => {
@@ -196,8 +197,15 @@ export default function SavedPage() {
     if (!record) return;
 
     const performDelete = async () => {
+      // Optimistic delete
+      setRecords(prev => prev.filter(r => r.id !== id));
+      setSelectedIds(prev => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+      
       await storage.removeFromSelection(id);
-      loadRecords();
       window.dispatchEvent(new Event('selection-updated'));
       toast.show('已从列表中移除', 'success');
     };
@@ -214,8 +222,11 @@ export default function SavedPage() {
   };
 
   const handleToggleFavorite = async (id: number, isPinned: boolean) => {
+    // Optimistic update
+    setRecords(prev => prev.map(r => r.id === id ? { ...r, isPinned } : r));
+    
     await storage.updateSelection(id, { isPinned });
-    loadRecords();
+    window.dispatchEvent(new Event('selection-updated'));
     toast.show(isPinned ? '已加入收藏' : '已取消收藏', 'info');
   };
 
@@ -225,8 +236,11 @@ export default function SavedPage() {
     const newMultiplier = Math.max(1, (record.multiplier || 1) + delta);
     if (newMultiplier === record.multiplier) return;
     
+    // Optimistic update
+    setRecords(prev => prev.map(r => r.id === id ? { ...r, multiplier: newMultiplier } : r));
+    
     await storage.updateSelection(id, { multiplier: newMultiplier });
-    loadRecords();
+    window.dispatchEvent(new Event('selection-updated'));
   };
 
   const toggleSelect = (id: number) => {
@@ -281,11 +295,14 @@ export default function SavedPage() {
       title: '确认批量删除',
       message,
       onConfirm: async () => {
-        for (const id of Array.from(selectedIds)) {
+        const idsToRemove = Array.from(selectedIds);
+        // Optimistic update
+        setRecords(prev => prev.filter(r => !selectedIds.has(r.id!)));
+        setSelectedIds(new Set());
+
+        for (const id of idsToRemove) {
           await storage.removeFromSelection(id);
         }
-        setSelectedIds(new Set());
-        loadRecords();
         window.dispatchEvent(new Event('selection-updated'));
         toast.show('已批量删除选中项', 'success');
       }
@@ -307,10 +324,13 @@ export default function SavedPage() {
       title: '一键清理',
       message: `将清理当前页 ${nonFavorites.length} 注未收藏的号码，保留收藏号码。确认吗？`,
       onConfirm: async () => {
-        for (const record of nonFavorites) {
-          await storage.removeFromSelection(record.id!);
+        const idsToRemove = nonFavorites.map(r => r.id!);
+        // Optimistic update
+        setRecords(prev => prev.filter(r => !idsToRemove.includes(r.id!)));
+        
+        for (const id of idsToRemove) {
+          await storage.removeFromSelection(id);
         }
-        loadRecords();
         window.dispatchEvent(new Event('selection-updated'));
         toast.show('清理完成', 'success');
       }
@@ -353,20 +373,14 @@ export default function SavedPage() {
       <div className="absolute top-0 right-0 -z-10 w-96 h-96 bg-blue-50 rounded-full blur-3xl opacity-50 -mr-24 -mt-24 pointer-events-none" />
       
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-6 md:mb-10">
-        {/* Tab Switcher & Actions */}
-        <div className="flex flex-wrap items-center justify-between w-full gap-4">
-          <LotteryTabSwitcher 
-            activeTab={activeTab} 
-            onTabChange={setActiveTab} 
-            counts={{ SSQ: ssqCount, DLT: dltCount }}
-          />
-
-          <div className="flex items-center gap-2">
+        {/* Actions */}
+        <div className="flex flex-wrap items-center justify-end w-full gap-4">
+          <div className="flex items-center gap-2 ml-auto">
             {filteredRecords.length > 0 && (
               <>
                 <button 
                   onClick={handleClearCurrent}
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-black bg-white text-rose-500 border border-rose-100 hover:bg-rose-50 transition-all shadow-sm"
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-black bg-white text-rose-500 border border-rose-100 hover:bg-rose-50 transition-all shadow-sm active:scale-95"
                   title="清理未收藏号码"
                 >
                   <RefreshCcw className="w-4 h-4" />
@@ -374,7 +388,7 @@ export default function SavedPage() {
                 </button>
                 <button 
                   onClick={handleSelectAll}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-black transition-all ${
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-black transition-all active:scale-95 ${
                     isAllSelected 
                       ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-200' 
                       : isPartialSelected

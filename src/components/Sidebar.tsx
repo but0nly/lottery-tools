@@ -5,6 +5,8 @@ import { usePathname } from 'next/navigation';
 import { useState, useCallback, useEffect } from 'react';
 import { Home, Calculator, History, Bookmark, Dices } from 'lucide-react';
 import { storage } from '@/lib/storage';
+import { useLotteryContext } from '@/app/LotteryContext';
+import { LotteryTabSwitcher } from './LotteryTabSwitcher';
 
 const navItems = [
   { href: '/', label: '首页', icon: Home, activeColor: 'text-emerald-500' },
@@ -27,6 +29,7 @@ const getPageTitle = (pathname: string) => {
 export function MobileHeader() {
   const pathname = usePathname();
   const pageTitle = getPageTitle(pathname);
+  const { activeType, setActiveType } = useLotteryContext();
 
   return (
     <header className="md:hidden h-16 bg-white/80 backdrop-blur-2xl text-slate-900 flex-shrink-0 flex items-center justify-between px-6 border-b border-slate-100/50 shadow-sm shadow-slate-100/20 z-50 sticky top-0">
@@ -39,6 +42,14 @@ export function MobileHeader() {
           <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">{pageTitle}</span>
         </div>
       </div>
+
+      <div className="flex-shrink-0">
+        <LotteryTabSwitcher 
+          activeTab={activeType} 
+          onTabChange={setActiveType} 
+          variant="compact"
+        />
+      </div>
     </header>
   );
 }
@@ -47,23 +58,23 @@ export function MobileHeader() {
 export function DesktopSidebar() {
   const pathname = usePathname();
   const [count, setCount] = useState(0);
+  const { activeType, setActiveType } = useLotteryContext();
 
   const loadCount = useCallback(async () => {
     const items = await storage.getSelection();
-    setCount(items.length);
-  }, []);
+    const filteredItems = items.filter(item => item.type === activeType);
+    setCount(filteredItems.length);
+  }, [activeType]);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      loadCount();
-    }, 0);
+    loadCount();
     window.addEventListener('selection-updated', loadCount);
-    // Backward compatibility for old events
     window.addEventListener('cart-updated', loadCount);
+    window.addEventListener('lottery-type-changed', loadCount);
     return () => {
-      clearTimeout(timer);
       window.removeEventListener('selection-updated', loadCount);
       window.removeEventListener('cart-updated', loadCount);
+      window.removeEventListener('lottery-type-changed', loadCount);
     };
   }, [loadCount]);
 
@@ -82,6 +93,13 @@ export function DesktopSidebar() {
             <p className="text-[10px] text-slate-500 font-bold uppercase tracking-[0.2em] mt-0.5">Smart Lottery</p>
           </div>
         </div>
+      </div>
+
+      <div className="px-6 mb-6">
+        <LotteryTabSwitcher 
+          activeTab={activeType} 
+          onTabChange={setActiveType} 
+        />
       </div>
       
       <nav className="flex-1 px-4 space-y-1.5 relative">
@@ -104,7 +122,7 @@ export function DesktopSidebar() {
                   className={`w-5 h-5 transition-transform group-hover:scale-110 ${isActive ? item.activeColor : 'text-slate-500'}`} 
                 />
                 {isSelection && count > 0 && (
-                  <span className="absolute -top-2 -right-2 bg-rose-500 text-white text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center border border-slate-950 animate-in zoom-in duration-300 shadow-lg shadow-rose-500/20">
+                  <span className="absolute -top-3 -right-3 bg-rose-500 text-white text-[11px] font-black w-6 h-6 rounded-full flex items-center justify-center border-2 border-slate-950 animate-in zoom-in duration-300 shadow-lg shadow-rose-500/30">
                     {count > 99 ? '99+' : count}
                   </span>
                 )}
@@ -134,22 +152,23 @@ export function MobileNav() {
   const pathname = usePathname();
   const [isShaking, setIsShaking] = useState(false);
   const [count, setCount] = useState(0);
+  const { activeType } = useLotteryContext();
 
   const loadCount = useCallback(async () => {
     const items = await storage.getSelection();
-    setCount(items.length);
-  }, []);
+    const filteredItems = items.filter(item => item.type === activeType);
+    setCount(filteredItems.length);
+  }, [activeType]);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      loadCount();
-    }, 0);
+    loadCount();
     window.addEventListener('selection-updated', loadCount);
     window.addEventListener('cart-updated', loadCount);
+    window.addEventListener('lottery-type-changed', loadCount);
     return () => {
-      clearTimeout(timer);
       window.removeEventListener('selection-updated', loadCount);
       window.removeEventListener('cart-updated', loadCount);
+      window.removeEventListener('lottery-type-changed', loadCount);
     };
   }, [loadCount]);
 
@@ -195,7 +214,7 @@ export function MobileNav() {
                   className={`w-5 h-5 transition-colors ${isActive ? `${item.activeColor}` : 'text-slate-400'}`} 
                 />
                 {isSelection && count > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[7px] font-black w-3.5 h-3.5 rounded-full flex items-center justify-center border border-white animate-in zoom-in duration-300 shadow-md">
+                  <span className="absolute -top-2 -right-2 bg-rose-500 text-white text-[10px] font-black w-5.5 h-5.5 rounded-full flex items-center justify-center border-2 border-white animate-in zoom-in duration-300 shadow-lg shadow-rose-500/20">
                     {count > 99 ? '99' : count}
                   </span>
                 )}

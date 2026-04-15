@@ -6,12 +6,12 @@ import { generateCombinations, LotteryType, FilterConditions, WheelingMode } fro
 import { storage, ReducerSettings } from '@/lib/storage';
 import { toast } from '@/lib/notification';
 import { CheckCircle2, AlertTriangle, Loader2, Plus, Shuffle, HelpCircle, Info, Calculator, Trash2 } from 'lucide-react';
+import { useLotteryContext } from '@/app/LotteryContext';
 
-import { LotteryTabSwitcher } from '@/components/LotteryTabSwitcher';
 import { triggerFlyToCart } from '@/components/FlyToCartAnimation';
 
 export default function ReducerPage() {
-  const [type, setType] = useState<LotteryType>('SSQ');
+  const { activeType: type } = useLotteryContext();
   const [wheelingMode, setWheelingMode] = useState<WheelingMode>('FULL');
   const [reds, setReds] = useState<number[]>([]);
   const [blues, setBlues] = useState<number[]>([]);
@@ -32,15 +32,16 @@ export default function ReducerPage() {
 
     setInSelectionKeys(new Set(selection.map(i => `${i.type}|${i.reds}|${i.blues}`)));
 
-    if (settings) {
-      if (settings.type) setType(settings.type);
+    if (settings && settings.type === type) {
       if (settings.wheelingMode) setWheelingMode(settings.wheelingMode);
       if (settings.reds) setReds(settings.reds);
       if (settings.blues) setBlues(settings.blues);
       if (settings.conditions) setConditions(settings.conditions);
+    } else {
+      handleClear();
     }
     setIsInitialized(true);
-  }, []);
+  }, [type]);
 
   useEffect(() => {
     loadExistingStates();
@@ -181,13 +182,6 @@ export default function ReducerPage() {
           </h1>
           <p className="text-slate-500 text-sm md:text-base ml-1">通过旋转矩阵算法降低购彩成本</p>
         </div>
-      </div>
-
-      <div className="mb-10 flex justify-center md:justify-start">
-        <LotteryTabSwitcher 
-          activeTab={type} 
-          onTabChange={(newType) => { setType(newType); handleClear(); }} 
-        />
       </div>
 
       <div className="grid lg:grid-cols-2 gap-6 md:gap-8 min-w-0">

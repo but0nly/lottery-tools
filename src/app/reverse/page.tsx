@@ -22,12 +22,12 @@ import {
   History, 
   Plus
 } from 'lucide-react';
+import { useLotteryContext } from '@/app/LotteryContext';
 
-import { LotteryTabSwitcher } from '@/components/LotteryTabSwitcher';
 import { triggerFlyToCart } from '@/components/FlyToCartAnimation';
 
 export default function ReversePage() {
-  const [type, setType] = useState<LotteryType>('SSQ');
+  const { activeType: type } = useLotteryContext();
   const [mode, setMode] = useState<'FREQUENCY' | 'GAME_THEORY'>('GAME_THEORY');
   const [historySize, setHistorySize] = useState(100);
   const [gtConfig, setGtConfig] = useState<GameTheoryConfig>(DEFAULT_GAME_THEORY_CONFIG);
@@ -55,11 +55,12 @@ export default function ReversePage() {
     // Initial load of settings
     if (!isInitialized) {
       const settings = await storage.getSettings<ReverseSettings>('reverse_params');
-      if (settings) {
-        if (settings.type) setType(settings.type);
+      if (settings && settings.type === type) {
         if (settings.mode) setMode(settings.mode);
         if (settings.historySize) setHistorySize(settings.historySize);
         if (settings.gtConfig) setGtConfig(settings.gtConfig);
+      } else if (settings && settings.type !== type) {
+        handleClear();
       }
       setIsInitialized(true);
     }
@@ -162,13 +163,6 @@ export default function ReversePage() {
           </h1>
           <p className="text-slate-500 text-sm md:text-base ml-1">基于博弈论与大数据规避大众心理热门号</p>
         </div>
-      </div>
-
-      <div className="mb-8 flex justify-center md:justify-start">
-        <LotteryTabSwitcher 
-          activeTab={type} 
-          onTabChange={(newType) => { setType(newType); setResult(null); }} 
-        />
       </div>
 
       <div className="flex w-full md:w-auto md:inline-flex p-1.5 bg-slate-100/50 backdrop-blur-sm rounded-2xl mb-10 border border-slate-200/50">

@@ -8,34 +8,43 @@ interface LotteryTabSwitcherProps {
     SSQ?: number;
     DLT?: number;
   };
+  variant?: 'default' | 'compact';
 }
 
-export function LotteryTabSwitcher({ activeTab, onTabChange, counts }: LotteryTabSwitcherProps) {
+export function LotteryTabSwitcher({ activeTab, onTabChange, counts, variant = 'default' }: LotteryTabSwitcherProps) {
+  const isCompact = variant === 'compact';
+  
   return (
-    <div className="grid grid-cols-2 p-1 bg-slate-100 rounded-2xl border border-slate-200 relative w-full md:w-auto md:min-w-[280px]">
+    <div className={`grid grid-cols-2 p-1 bg-slate-100 rounded-2xl border border-slate-200 relative ${
+      isCompact ? 'w-full max-w-[180px]' : 'w-full md:w-auto md:min-w-[280px]'
+    }`}>
       <button 
         onClick={() => onTabChange('SSQ')}
-        className={`relative z-10 flex items-center justify-center gap-2 px-4 py-2 md:py-2.5 rounded-xl text-xs md:text-sm font-bold transition-all duration-300 ${
+        className={`relative z-10 flex items-center justify-center gap-2 rounded-xl font-bold transition-all duration-300 ${
+          isCompact ? 'px-2 py-1.5 text-[10px]' : 'px-4 py-2 md:py-2.5 text-xs md:text-sm'
+        } ${
           activeTab === 'SSQ' 
             ? 'text-rose-600' 
             : 'text-slate-500 hover:text-slate-700'
         }`}
       >
-        <span className={`w-2 h-2 rounded-full transition-colors duration-300 ${activeTab === 'SSQ' ? 'bg-rose-500 animate-pulse' : 'bg-slate-300'}`}></span>
+        <span className={`${isCompact ? 'w-1.5 h-1.5' : 'w-2 h-2'} rounded-full transition-colors duration-300 ${activeTab === 'SSQ' ? 'bg-rose-500 animate-pulse' : 'bg-slate-300'}`}></span>
         双色球
-        {counts?.SSQ !== undefined && <span className="ml-1 opacity-50 font-normal">{counts.SSQ}</span>}
+        {!isCompact && counts?.SSQ !== undefined && <span className="ml-1 opacity-50 font-normal">{counts.SSQ}</span>}
       </button>
       <button 
         onClick={() => onTabChange('DLT')}
-        className={`relative z-10 flex items-center justify-center gap-2 px-4 py-2 md:py-2.5 rounded-xl text-xs md:text-sm font-bold transition-all duration-300 ${
+        className={`relative z-10 flex items-center justify-center gap-2 rounded-xl font-bold transition-all duration-300 ${
+          isCompact ? 'px-2 py-1.5 text-[10px]' : 'px-4 py-2 md:py-2.5 text-xs md:text-sm'
+        } ${
           activeTab === 'DLT' 
             ? 'text-amber-600' 
             : 'text-slate-500 hover:text-slate-700'
         }`}
       >
-        <span className={`w-2 h-2 rounded-full transition-colors duration-300 ${activeTab === 'DLT' ? 'bg-amber-500 animate-pulse' : 'bg-slate-300'}`}></span>
+        <span className={`${isCompact ? 'w-1.5 h-1.5' : 'w-2 h-2'} rounded-full transition-colors duration-300 ${activeTab === 'DLT' ? 'bg-amber-500 animate-pulse' : 'bg-slate-300'}`}></span>
         大乐透
-        {counts?.DLT !== undefined && <span className="ml-1 opacity-50 font-normal">{counts.DLT}</span>}
+        {!isCompact && counts?.DLT !== undefined && <span className="ml-1 opacity-50 font-normal">{counts.DLT}</span>}
       </button>
       {/* Sliding Pill Background */}
       <div 
