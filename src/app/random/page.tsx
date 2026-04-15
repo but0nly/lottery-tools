@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { BallPicker } from '@/components/BallPicker';
+import { TumblingBall } from '@/components/TumblingBall';
 import { LotteryType, generateRandomWithFixed } from '@/lib/combinations';
 import { storage, RandomSettings } from '@/lib/storage';
 import { toast } from '@/lib/notification';
@@ -22,6 +23,7 @@ export default function RandomPage() {
   const [results, setResults] = useState<{reds: number[], blues: number[]}[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [animationKey, setAnimationKey] = useState(0);
   
   // Track existing data for active states
   const [inSelectionKeys, setInSelectionKeys] = useState<Set<string>>(new Set());
@@ -103,6 +105,7 @@ export default function RandomPage() {
       try {
         const generated = generateRandomWithFixed(type, fixedReds, fixedBlues, betCount, excludedReds, excludedBlues);
         setResults(generated);
+        setAnimationKey(prev => prev + 1);
         toast.show(`已随机生成 ${betCount} 注号码`, 'success');
       } catch (e) {
         console.error(e);
@@ -320,35 +323,32 @@ export default function RandomPage() {
                       
                       <div className="flex-1 min-w-0 overflow-x-auto no-scrollbar pb-0.5">
                         <div className="flex flex-nowrap gap-1.5 items-center">
-                          {r.reds.map(n => {
+                          {r.reds.map((n, idx) => {
                             const isFixed = fixedReds.includes(n);
                             return (
-                              <span 
-                                key={`r${n}`} 
-                                className={`w-7 h-7 md:w-8 md:h-8 rounded-full flex-shrink-0 flex items-center justify-center text-[10px] md:text-xs font-black shadow-md transition-all group-hover:scale-105 ${
-                                  isFixed 
-                                    ? 'bg-red-700 text-white ring-2 ring-red-200 ring-offset-2' 
-                                    : 'bg-red-500 text-white'
-                                } shadow-red-100`}
-                              >
-                                {n.toString().padStart(2, '0')}
-                              </span>
+                              <TumblingBall 
+                                key={`r${n}-${animationKey}`}
+                                finalNumber={n}
+                                color="red"
+                                delay={300 + idx * 100}
+                                isFixed={isFixed}
+                                max={type === 'SSQ' ? 33 : 35}
+                              />
                             );
                           })}
                           <div className="w-px h-4 bg-slate-200 mx-0.5 flex-shrink-0"></div>
-                          {r.blues.map(n => {
+                          {r.blues.map((n, idx) => {
                             const isFixed = fixedBlues.includes(n);
+                            const redCount = r.reds.length;
                             return (
-                              <span 
-                                key={`b${n}`} 
-                                className={`w-7 h-7 md:w-8 md:h-8 rounded-full flex-shrink-0 flex items-center justify-center text-[10px] md:text-xs font-black shadow-md transition-all group-hover:scale-105 ${
-                                  isFixed 
-                                    ? 'bg-blue-700 text-white ring-2 ring-blue-200 ring-offset-2' 
-                                    : 'bg-blue-500 text-white'
-                                } shadow-blue-100`}
-                              >
-                                {n.toString().padStart(2, '0')}
-                              </span>
+                              <TumblingBall 
+                                key={`b${n}-${animationKey}`}
+                                finalNumber={n}
+                                color="blue"
+                                delay={300 + (redCount + idx) * 100}
+                                isFixed={isFixed}
+                                max={type === 'SSQ' ? 16 : 12}
+                              />
                             );
                           })}
                         </div>
