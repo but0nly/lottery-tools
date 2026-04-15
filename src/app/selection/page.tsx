@@ -29,52 +29,52 @@ const SwipeableItem = ({
   onToggleSelect: (id: number) => void;
   isSelected: boolean;
 }) => {
+  const [isOpen, setIsOpen] = useState(false);
   const x = useMotionValue(0);
-  const deleteBtnOpacity = useTransform(x, [-100, -60], [1, 0]);
-  const deleteBtnOpacityLeft = useTransform(x, [60, 100], [0, 1]);
   
-  const deleteScale = useTransform(x, [-100, -80], [1.2, 1]);
-  const deleteScaleLeft = useTransform(x, [80, 100], [1, 1.2]);
+  // Controls the background "Delete" button reveal
+  const deleteBtnOpacity = useTransform(x, [-100, -40], [1, 0]);
+  const deleteScale = useTransform(x, [-100, -60], [1.1, 0.8]);
 
   const handleDragEnd = (_: unknown, info: PanInfo) => {
-    const threshold = 100;
-    if (Math.abs(info.offset.x) > threshold) {
-      onDelete(record.id!);
+    // If swiped left enough, keep it open
+    if (info.offset.x < -40 || info.velocity.x < -100) {
+      setIsOpen(true);
+    } else {
+      setIsOpen(false);
     }
   };
 
   return (
-    <div className="relative overflow-hidden rounded-[24px] mb-4 group">
-      {/* Background Action Layer (Delete from both sides) */}
-      <motion.div 
-        style={{ opacity: deleteBtnOpacityLeft }}
-        className="absolute left-0 top-0 bottom-0 w-32 bg-rose-500 flex items-center justify-start pl-8"
-      >
-        <motion.div style={{ scale: deleteScaleLeft }} className="flex flex-col items-center text-white gap-1">
+    <div className="relative overflow-hidden rounded-[24px] mb-4 group touch-pan-y">
+      {/* Background Action Layer (Revealed Delete Button) */}
+      <div className="absolute inset-y-0 right-0 w-32 bg-rose-500 flex items-center justify-end pr-8">
+        <motion.button 
+          style={{ opacity: deleteBtnOpacity, scale: deleteScale }}
+          onClick={() => {
+            onDelete(record.id!);
+            setIsOpen(false);
+          }}
+          className="flex flex-col items-center text-white gap-1 active:scale-90 transition-transform"
+        >
           <Trash2 className="w-6 h-6" />
           <span className="text-[10px] font-black uppercase tracking-widest">删除</span>
-        </motion.div>
-      </motion.div>
-
-      <motion.div 
-        style={{ opacity: deleteBtnOpacity }}
-        className="absolute right-0 top-0 bottom-0 w-32 bg-rose-500 flex items-center justify-end pr-8"
-      >
-        <motion.div style={{ scale: deleteScale }} className="flex flex-col items-center text-white gap-1">
-          <Trash2 className="w-6 h-6" />
-          <span className="text-[10px] font-black uppercase tracking-widest">删除</span>
-        </motion.div>
-      </motion.div>
+        </motion.button>
+      </div>
 
       {/* Main Content Layer */}
       <motion.div
         drag="x"
-        dragConstraints={{ left: 0, right: 0 }}
-        dragElastic={0.7}
+        dragConstraints={{ left: -100, right: 0 }}
+        dragElastic={0.1}
         onDragEnd={handleDragEnd}
-        style={{ x, touchAction: 'pan-y' }}
-        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+        animate={{ x: isOpen ? -100 : 0 }}
+        style={{ x }}
+        transition={{ type: 'spring', stiffness: 400, damping: 40 }}
         className={`bg-white p-4 md:p-5 border border-white shadow-xl shadow-slate-200/50 flex items-center gap-3 md:gap-4 relative z-10 w-full transition-colors ${record.isPinned ? 'bg-amber-50/20 border-amber-100/30' : ''}`}
+        onClick={() => {
+          if (isOpen) setIsOpen(false);
+        }}
       >
         {/* Checkbox */}
         <button 
