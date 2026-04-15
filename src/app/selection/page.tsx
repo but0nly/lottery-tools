@@ -213,7 +213,6 @@ export default function SavedPage() {
       
       await storage.removeFromSelection(id);
       window.dispatchEvent(new Event('selection-updated'));
-      toast.show('已从列表中移除', 'success');
     };
 
     if (record.isPinned) {
@@ -233,7 +232,6 @@ export default function SavedPage() {
     
     await storage.updateSelection(id, { isPinned });
     window.dispatchEvent(new Event('selection-updated'));
-    toast.show(isPinned ? '已加入收藏' : '已取消收藏', 'info');
   };
 
   const handleUpdateMultiplier = async (id: number, delta: number) => {

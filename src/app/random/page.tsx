@@ -359,7 +359,6 @@ export default function RandomPage() {
                           if (isInSelection) {
                             await storage.removeFromSelectionByContent(type, redsStr, bluesStr);
                             window.dispatchEvent(new Event('selection-updated'));
-                            toast.show('已从选号单移除', 'info');
                             loadExistingStates();
                           } else {
                             triggerFlyToCart(e, 'bg-orange-500');
@@ -371,7 +370,6 @@ export default function RandomPage() {
                                 toolUsed: 'RANDOM'
                               });
                               window.dispatchEvent(new Event('selection-updated'));
-                              toast.show('已加入选号单', 'success');
                               loadExistingStates();
                             }, 600);
                           }

@@ -120,7 +120,6 @@ export default function ReversePage() {
     if (isInSelection) {
       await storage.removeFromSelectionByContent(type, redsStr, bluesStr);
       window.dispatchEvent(new Event('selection-updated'));
-      toast.show('已从选号单移除', 'info');
     } else {
       triggerFlyToCart(e, 'bg-rose-500');
       
@@ -132,7 +131,6 @@ export default function ReversePage() {
           toolUsed: 'REVERSE'
         });
         window.dispatchEvent(new Event('selection-updated'));
-        toast.show('已加入选号单', 'success');
         checkExistingStates();
       }, 600);
     }
