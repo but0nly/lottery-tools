@@ -5,7 +5,7 @@ import { BallPicker } from '@/components/BallPicker';
 import { LotteryType, generateRandomWithFixed } from '@/lib/combinations';
 import { storage, RandomSettings } from '@/lib/storage';
 import { toast } from '@/lib/notification';
-import { CheckCircle2, Loader2, Plus, Pin, Shuffle, Trash2 } from 'lucide-react';
+import { CheckCircle2, Loader2, Plus, Shuffle, Trash2 } from 'lucide-react';
 
 import { LotteryTabSwitcher } from '@/components/LotteryTabSwitcher';
 import { triggerFlyToCart } from '@/components/FlyToCartAnimation';
@@ -25,7 +25,6 @@ export default function RandomPage() {
   
   // Track existing data for active states
   const [inSelectionKeys, setInSelectionKeys] = useState<Set<string>>(new Set());
-  const [pinnedKeys, setPinnedKeys] = useState<Set<string>>(new Set());
 
   const loadExistingStates = useCallback(async () => {
     const [selection, settings] = await Promise.all([
@@ -34,7 +33,6 @@ export default function RandomPage() {
     ]);
     
     setInSelectionKeys(new Set(selection.map(i => `${i.type}|${i.reds}|${i.blues}`)));
-    setPinnedKeys(new Set(selection.filter(i => i.isPinned).map(i => `${i.type}|${i.reds}|${i.blues}`)));
 
     if (settings) {
       if (settings.type) setType(settings.type);
@@ -123,23 +121,6 @@ export default function RandomPage() {
     setExcludedReds([]);
     setExcludedBlues([]);
     setResults([]);
-  };
-
-  const handlePinAll = async () => {
-    let saved = 0;
-    for (const r of results) {
-      await storage.addToSelection({
-        type,
-        reds: r.reds.map(n => n.toString().padStart(2, '0')).join(','),
-        blues: r.blues.map(n => n.toString().padStart(2, '0')).join(','),
-        toolUsed: 'RANDOM',
-        isPinned: true
-      });
-      saved++;
-    }
-    window.dispatchEvent(new Event('selection-updated'));
-    toast.show(`成功固定 ${saved} 注选号`, 'success');
-    loadExistingStates();
   };
 
   const handleAddToSelectionAll = async (e: React.MouseEvent) => {
@@ -305,14 +286,7 @@ export default function RandomPage() {
                   className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-orange-500 text-white rounded-xl text-xs font-black hover:bg-orange-600 transition-all shadow-lg shadow-orange-100 active:scale-95"
                 >
                   <Plus className="w-3.5 h-3.5" />
-                  全部加入
-                </button>
-                <button 
-                  onClick={handlePinAll}
-                  className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-black hover:bg-slate-800 transition-all shadow-lg shadow-slate-200 active:scale-95"
-                >
-                  <Pin className="w-3.5 h-3.5" />
-                  全部固定
+                  全部加入选号单
                 </button>
               </div>
             )}
@@ -334,7 +308,6 @@ export default function RandomPage() {
                 const redsStr = r.reds.map(n => n.toString().padStart(2, '0')).join(',');
                 const bluesStr = r.blues.map(n => n.toString().padStart(2, '0')).join(',');
                 const key = `${type}|${redsStr}|${bluesStr}`;
-                const isPinned = pinnedKeys.has(key);
                 const isInSelection = inSelectionKeys.has(key);
 
                 return (
@@ -388,31 +361,6 @@ export default function RandomPage() {
                     {/* 第二行：操作按钮 */}
                     <div className="flex items-center justify-end gap-2">
                       <button 
-                        onClick={async () => {
-                          if (isPinned) {
-                            const items = await storage.getSelection();
-                            const item = items.find(i => i.type === type && i.reds === redsStr && i.blues === bluesStr);
-                            if (item) await storage.updateSelection(item.id!, { isPinned: false });
-                            toast.show('已取消固定', 'info');
-                          } else {
-                            await storage.addToSelection({
-                              type,
-                              reds: redsStr,
-                              blues: bluesStr,
-                              toolUsed: 'RANDOM',
-                              isPinned: true
-                            });
-                            toast.show('已固定选号', 'success');
-                          }
-                          window.dispatchEvent(new Event('selection-updated'));
-                          loadExistingStates();
-                        }}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all ${isPinned ? 'text-indigo-600 bg-indigo-50 shadow-inner' : 'text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 bg-white shadow-sm border border-slate-100'}`}
-                      >
-                        <Pin className={`w-3.5 h-3.5 ${isPinned ? 'fill-current' : ''}`} />
-                        {isPinned ? '已固定' : '固定'}
-                      </button>
-                      <button 
                         onClick={async (e) => {
                           if (isInSelection) {
                             await storage.removeFromSelectionByContent(type, redsStr, bluesStr);
@@ -434,10 +382,10 @@ export default function RandomPage() {
                             }, 600);
                           }
                         }}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all ${isInSelection ? 'text-orange-600 bg-orange-50 shadow-inner' : 'text-slate-500 hover:text-orange-600 hover:bg-orange-50 bg-white shadow-sm border border-slate-100'}`}
+                        className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all ${isInSelection ? 'text-orange-600 bg-orange-50 shadow-inner' : 'text-white bg-slate-900 hover:bg-slate-800 shadow-lg active:scale-95'}`}
                       >
                         {isInSelection ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
-                        {isInSelection ? '已加入' : '加入'}
+                        {isInSelection ? '已加入' : '加入选号单'}
                       </button>
                     </div>
                   </div>

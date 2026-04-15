@@ -18,7 +18,6 @@ import {
   Users, 
   Sliders, 
   Info, 
-  Pin, 
   HelpCircle, 
   History, 
   Plus
@@ -39,12 +38,10 @@ export default function ReversePage() {
 
   // Track states for active buttons
   const [isInSelection, setIsInSelection] = useState(false);
-  const [isPinned, setIsPinned] = useState(false);
 
   const checkExistingStates = useCallback(async () => {
     if (!result) {
       setIsInSelection(false);
-      setIsPinned(false);
     } else {
       const redsStr = result.reds.map(n => n.toString().padStart(2, '0')).join(',');
       const bluesStr = result.blues.map(n => n.toString().padStart(2, '0')).join(',');
@@ -53,7 +50,6 @@ export default function ReversePage() {
 
       const match = selection.find(i => i.type === type && i.reds === redsStr && i.blues === bluesStr);
       setIsInSelection(!!match);
-      setIsPinned(match?.isPinned || false);
     }
     
     // Initial load of settings
@@ -87,7 +83,6 @@ export default function ReversePage() {
   }, [type, mode, historySize, gtConfig, isInitialized]);
 
   const handleCalculate = async () => {
-    setIsPinned(false);
     setIsInSelection(false);
     setIsLoading(true);
     
@@ -114,30 +109,6 @@ export default function ReversePage() {
         setIsLoading(false);
       }
     }, 300);
-  };
-
-  const handlePin = async () => {
-    if (!result) return;
-    const redsStr = result.reds.map(n => n.toString().padStart(2, '0')).join(',');
-    const bluesStr = result.blues.map(n => n.toString().padStart(2, '0')).join(',');
-
-    if (isPinned) {
-      const selection = await storage.getSelection();
-      const item = selection.find(i => i.type === type && i.reds === redsStr && i.blues === bluesStr);
-      if (item) await storage.updateSelection(item.id!, { isPinned: false });
-      toast.show('已取消固定', 'info');
-    } else {
-      await storage.addToSelection({
-        type,
-        reds: redsStr,
-        blues: bluesStr,
-        toolUsed: 'REVERSE',
-        isPinned: true
-      });
-      toast.show('已成功固定选号', 'success');
-    }
-    window.dispatchEvent(new Event('selection-updated'));
-    checkExistingStates();
   };
 
   const handleAddToSelection = async (e: React.MouseEvent) => {
@@ -371,22 +342,13 @@ export default function ReversePage() {
                     
                     <div className="flex items-center justify-center gap-3">
                       <button 
-                        onClick={handlePin}
-                        className={`flex items-center gap-2.5 px-5 py-3 rounded-2xl text-xs md:text-sm font-black transition-all shadow-lg ${
-                          isPinned ? 'text-indigo-600 bg-indigo-50 shadow-inner ring-1 ring-indigo-200' : 'text-slate-600 bg-white border border-slate-100 hover:bg-slate-50 shadow-slate-100'
-                        }`}
-                      >
-                        <Pin className={`w-4 h-4 md:w-5 md:h-5 ${isPinned ? 'fill-current' : ''}`} />
-                        {isPinned ? '已固定' : '固定选号'}
-                      </button>
-                      <button 
                         onClick={(e) => handleAddToSelection(e)}
-                        className={`flex items-center gap-2.5 px-5 py-3 rounded-2xl text-xs md:text-sm font-black transition-all shadow-lg ${
-                          isInSelection ? 'text-orange-600 bg-orange-50 shadow-inner ring-1 ring-orange-200' : 'text-white bg-slate-900 hover:bg-slate-800 shadow-slate-200'
+                        className={`flex items-center gap-2.5 px-6 py-3 rounded-2xl text-sm md:text-base font-black transition-all shadow-xl ${
+                          isInSelection ? 'text-orange-600 bg-orange-50 shadow-inner ring-1 ring-orange-200' : 'text-white bg-slate-900 hover:bg-slate-800 shadow-slate-200 active:scale-95'
                         }`}
                       >
                         {isInSelection ? <CheckCircle2 className="w-4 h-4 md:w-5 md:h-5" /> : <Plus className="w-4 h-4 md:w-5 md:h-5" />}
-                        {isInSelection ? '已加入' : '加入选号'}
+                        {isInSelection ? '已加入选号单' : '加入选号单'}
                       </button>
                     </div>
                   </div>

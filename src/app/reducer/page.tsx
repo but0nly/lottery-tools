@@ -5,7 +5,7 @@ import { BallPicker } from '@/components/BallPicker';
 import { generateCombinations, LotteryType, FilterConditions, WheelingMode } from '@/lib/combinations';
 import { storage, ReducerSettings } from '@/lib/storage';
 import { toast } from '@/lib/notification';
-import { CheckCircle2, AlertTriangle, Loader2, Plus, Pin, Shuffle, HelpCircle, Info, Calculator, Trash2 } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, Loader2, Plus, Shuffle, HelpCircle, Info, Calculator, Trash2 } from 'lucide-react';
 
 import { LotteryTabSwitcher } from '@/components/LotteryTabSwitcher';
 import { triggerFlyToCart } from '@/components/FlyToCartAnimation';
@@ -20,19 +20,17 @@ export default function ReducerPage() {
   const [showWheelingTip, setShowWheelingTip] = useState(false);
   const [showFilterTip, setShowFilterTip] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
-  
+
   // Track existing data for active states
   const [inSelectionKeys, setInSelectionKeys] = useState<Set<string>>(new Set());
-  const [pinnedKeys, setPinnedKeys] = useState<Set<string>>(new Set());
 
   const loadExistingStates = useCallback(async () => {
     const [selection, settings] = await Promise.all([
       storage.getSelection(),
       storage.getSettings<ReducerSettings>('reducer_params')
     ]);
-    
+
     setInSelectionKeys(new Set(selection.map(i => `${i.type}|${i.reds}|${i.blues}`)));
-    setPinnedKeys(new Set(selection.filter(i => i.isPinned).map(i => `${i.type}|${i.reds}|${i.blues}`)));
 
     if (settings) {
       if (settings.type) setType(settings.type);
@@ -80,9 +78,9 @@ export default function ReducerPage() {
       toast.show("为了保证计算性能，智能缩水模式下红球最多选择16个号码。", 'warning');
       return;
     }
-    
+
     setIsGenerating(true);
-    
+
     // Use setTimeout to allow UI to show loader
     setTimeout(() => {
       // Clean up conditions
@@ -90,7 +88,7 @@ export default function ReducerPage() {
       if (conditions.minSum && conditions.minSum > 0) cleanedConditions.minSum = conditions.minSum;
       if (conditions.maxSum && conditions.maxSum > 0) cleanedConditions.maxSum = conditions.maxSum;
       if (conditions.maxConsecutive && conditions.maxConsecutive > 0) cleanedConditions.maxConsecutive = conditions.maxConsecutive;
-      
+
       try {
         const generated = generateCombinations(
           type, 
@@ -108,23 +106,6 @@ export default function ReducerPage() {
         setIsGenerating(false);
       }
     }, 300);
-  };
-
-  const handlePinAll = async () => {
-    let saved = 0;
-    for (const r of results) {
-      await storage.addToSelection({
-        type,
-        reds: r.reds.map(n => n.toString().padStart(2, '0')).join(','),
-        blues: r.blues.map(n => n.toString().padStart(2, '0')).join(','),
-        toolUsed: 'REDUCER',
-        isPinned: true
-      });
-      saved++;
-    }
-    window.dispatchEvent(new Event('selection-updated'));
-    toast.show(`成功固定 ${saved} 注缩水选号`, 'success');
-    loadExistingStates();
   };
 
   const handleAddToSelectionAll = async (e: React.MouseEvent) => {
@@ -152,7 +133,7 @@ export default function ReducerPage() {
   const handleRandomPick = () => {
     const maxRed = type === 'SSQ' ? 33 : 35;
     const maxBlue = type === 'SSQ' ? 16 : 12;
-    
+
     // Pick the minimum required pool size as requested
     const redCount = type === 'SSQ' ? 7 : 6; 
     const blueCount = 2; 
@@ -162,7 +143,7 @@ export default function ReducerPage() {
       const num = Math.floor(Math.random() * maxRed) + 1;
       if (!randomReds.includes(num)) randomReds.push(num);
     }
-    
+
     const randomBlues: number[] = [];
     while (randomBlues.length < blueCount) {
       const num = Math.floor(Math.random() * maxBlue) + 1;
@@ -189,7 +170,7 @@ export default function ReducerPage() {
     <div className="relative min-h-full p-4 md:p-8 max-w-7xl mx-auto pb-32 md:pb-8 overflow-hidden">
       {/* Background Blobs */}
       <div className="absolute top-0 right-0 -z-10 w-96 h-96 bg-emerald-50 rounded-full blur-3xl opacity-50 -mr-24 -mt-24" />
-      
+
       <div className="hidden md:flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10 md:pr-20">
         <div className="flex flex-col gap-2">
           <h1 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight flex items-center gap-3">
@@ -201,7 +182,7 @@ export default function ReducerPage() {
           <p className="text-slate-500 text-sm md:text-base ml-1">通过旋转矩阵算法降低购彩成本</p>
         </div>
       </div>
-      
+
       <div className="mb-10 flex justify-center md:justify-start">
         <LotteryTabSwitcher 
           activeTab={type} 
@@ -393,14 +374,7 @@ export default function ReducerPage() {
                   className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-500 text-white rounded-xl text-xs font-black hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-100 active:scale-95"
                 >
                   <Plus className="w-3.5 h-3.5" />
-                  全部加入
-                </button>
-                <button 
-                  onClick={handlePinAll}
-                  className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-black hover:bg-slate-800 transition-all shadow-lg shadow-slate-200 active:scale-95"
-                >
-                  <Pin className="w-3.5 h-3.5" />
-                  全部固定
+                  全部加入选号单
                 </button>
               </div>
             )}
@@ -422,7 +396,6 @@ export default function ReducerPage() {
                 const redsStr = r.reds.map(n => n.toString().padStart(2, '0')).join(',');
                 const bluesStr = r.blues.map(n => n.toString().padStart(2, '0')).join(',');
                 const key = `${type}|${redsStr}|${bluesStr}`;
-                const isPinned = pinnedKeys.has(key);
                 const isInSelection = inSelectionKeys.has(key);
 
                 return (
@@ -432,7 +405,7 @@ export default function ReducerPage() {
                       <span className="w-5 h-5 rounded-md bg-white shadow-sm text-slate-400 text-[10px] flex-shrink-0 flex items-center justify-center font-black border border-slate-100">
                         {i + 1}
                       </span>
-                      
+
                       <div className="flex-1 min-w-0 overflow-x-auto no-scrollbar pb-0.5">
                         <div className="flex flex-nowrap gap-1.5 items-center">
                           {r.reds.map(n => (
@@ -449,37 +422,12 @@ export default function ReducerPage() {
                         </div>
                       </div>
                     </div>
-                    
+
                     {/* 分割线 */}
                     <div className="h-px bg-slate-100/50 mx-1"></div>
 
                     {/* 第二行：操作按钮 */}
                     <div className="flex items-center justify-end gap-2">
-                      <button 
-                        onClick={async () => {
-                          if (isPinned) {
-                            const items = await storage.getSelection();
-                            const item = items.find(i => i.type === type && i.reds === redsStr && i.blues === bluesStr);
-                            if (item) await storage.updateSelection(item.id!, { isPinned: false });
-                            toast.show('已取消固定', 'info');
-                          } else {
-                            await storage.addToSelection({
-                              type,
-                              reds: redsStr,
-                              blues: bluesStr,
-                              toolUsed: 'REDUCER',
-                              isPinned: true
-                            });
-                            toast.show('已固定选号', 'success');
-                          }
-                          window.dispatchEvent(new Event('selection-updated'));
-                          loadExistingStates();
-                        }}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all ${isPinned ? 'text-indigo-600 bg-indigo-50 shadow-inner' : 'text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 bg-white shadow-sm border border-slate-100'}`}
-                      >
-                        <Pin className={`w-3.5 h-3.5 ${isPinned ? 'fill-current' : ''}`} />
-                        {isPinned ? '已固定' : '固定'}
-                      </button>
                       <button 
                         onClick={async (e) => {
                           if (isInSelection) {
@@ -502,10 +450,10 @@ export default function ReducerPage() {
                             }, 600);
                           }
                         }}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all ${isInSelection ? 'text-emerald-600 bg-emerald-50 shadow-inner' : 'text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 bg-white shadow-sm border border-slate-100'}`}
+                        className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all ${isInSelection ? 'text-emerald-600 bg-emerald-50 shadow-inner' : 'text-white bg-slate-900 hover:bg-slate-800 shadow-lg active:scale-95'}`}
                       >
                         {isInSelection ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
-                        {isInSelection ? '已加入' : '加入'}
+                        {isInSelection ? '已加入' : '加入选号单'}
                       </button>
                     </div>
                   </div>

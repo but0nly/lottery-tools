@@ -4,70 +4,77 @@ import { useEffect, useState } from 'react';
 import { toast } from '@/lib/notification';
 import { 
   Trash2, Plus, Minus, 
-  Copy, Check, Pin, X, LayoutGrid
+  Copy, Check, Star, X, LayoutGrid,
+  Calculator, RefreshCcw
 } from 'lucide-react';
+import Link from 'next/link';
 import { storage, SavedCombination } from '@/lib/storage';
 import { LotteryType } from '@/lib/combinations';
 import { LotteryTabSwitcher } from '@/components/LotteryTabSwitcher';
-import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
+import { motion, AnimatePresence, useMotionValue, useTransform, PanInfo } from 'framer-motion';
+import confetti from 'canvas-confetti';
 
 const SwipeableItem = ({ 
   record, 
   onDelete, 
-  onTogglePin, 
+  onToggleFavorite, 
   onUpdateMultiplier, 
   onToggleSelect,
   isSelected 
 }: { 
   record: SavedCombination; 
   onDelete: (id: number) => void; 
-  onTogglePin: (id: number, isPinned: boolean) => void;
+  onToggleFavorite: (id: number, isFavorite: boolean) => void;
   onUpdateMultiplier: (id: number, delta: number) => void;
   onToggleSelect: (id: number) => void;
   isSelected: boolean;
 }) => {
   const x = useMotionValue(0);
   const deleteBtnOpacity = useTransform(x, [-100, -60], [1, 0]);
-  const pinBtnOpacity = useTransform(x, [60, 100], [0, 1]);
+  const deleteBtnOpacityLeft = useTransform(x, [60, 100], [0, 1]);
+  
+  const deleteScale = useTransform(x, [-100, -80], [1.2, 1]);
+  const deleteScaleLeft = useTransform(x, [80, 100], [1, 1.2]);
+
+  const handleDragEnd = (_: unknown, info: PanInfo) => {
+    const threshold = 100;
+    if (Math.abs(info.offset.x) > threshold) {
+      onDelete(record.id!);
+    }
+  };
 
   return (
-    <div className="relative overflow-hidden rounded-[24px] mb-4">
-      {/* Background Action Layer (Left - Pin) */}
+    <div className="relative overflow-hidden rounded-[24px] mb-4 group">
+      {/* Background Action Layer (Delete from both sides) */}
       <motion.div 
-        style={{ opacity: pinBtnOpacity }}
-        className="absolute left-0 top-0 bottom-0 w-24 bg-indigo-500 flex items-center justify-center"
+        style={{ opacity: deleteBtnOpacityLeft }}
+        className="absolute left-0 top-0 bottom-0 w-32 bg-rose-500 flex items-center justify-start pl-8"
       >
-        <button 
-          onClick={() => onTogglePin(record.id!, !record.isPinned)}
-          className="w-full h-full flex flex-col items-center justify-center text-white gap-1"
-        >
-          {record.isPinned ? <X className="w-5 h-5" /> : <Pin className="w-5 h-5" />}
-          <span className="text-[10px] font-black uppercase tracking-widest">{record.isPinned ? '取消固定' : '固定'}</span>
-        </button>
+        <motion.div style={{ scale: deleteScaleLeft }} className="flex flex-col items-center text-white gap-1">
+          <Trash2 className="w-6 h-6" />
+          <span className="text-[10px] font-black uppercase tracking-widest">删除</span>
+        </motion.div>
       </motion.div>
 
-      {/* Background Action Layer (Right - Delete) */}
       <motion.div 
         style={{ opacity: deleteBtnOpacity }}
-        className="absolute right-0 top-0 bottom-0 w-24 bg-rose-500 flex items-center justify-center"
+        className="absolute right-0 top-0 bottom-0 w-32 bg-rose-500 flex items-center justify-end pr-8"
       >
-        <button 
-          onClick={() => onDelete(record.id!)}
-          className="w-full h-full flex flex-col items-center justify-center text-white gap-1"
-        >
-          <Trash2 className="w-5 h-5" />
+        <motion.div style={{ scale: deleteScale }} className="flex flex-col items-center text-white gap-1">
+          <Trash2 className="w-6 h-6" />
           <span className="text-[10px] font-black uppercase tracking-widest">删除</span>
-        </button>
+        </motion.div>
       </motion.div>
 
       {/* Main Content Layer */}
       <motion.div
         drag="x"
-        dragConstraints={{ left: -100, right: 100 }}
-        dragElastic={0.1}
+        dragConstraints={{ left: 0, right: 0 }}
+        dragElastic={0.7}
+        onDragEnd={handleDragEnd}
         style={{ x, touchAction: 'pan-y' }}
-        transition={{ duration: 0 }}
-        className={`bg-white p-4 md:p-5 border border-white shadow-xl shadow-slate-200/50 flex items-center gap-4 relative z-10 w-full ${record.isPinned ? 'bg-indigo-50/30 border-indigo-100/50' : ''}`}
+        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+        className={`bg-white p-4 md:p-5 border border-white shadow-xl shadow-slate-200/50 flex items-center gap-3 md:gap-4 relative z-10 w-full transition-colors ${record.isPinned ? 'bg-amber-50/20 border-amber-100/30' : ''}`}
       >
         {/* Checkbox */}
         <button 
@@ -75,28 +82,45 @@ const SwipeableItem = ({
             e.stopPropagation();
             onToggleSelect(record.id!);
           }}
-          className={`w-6 h-6 rounded-lg flex-shrink-0 flex items-center justify-center border-2 ${
+          className={`w-6 h-6 rounded-lg flex-shrink-0 flex items-center justify-center border-2 transition-all ${
             isSelected 
               ? 'bg-emerald-500 border-emerald-500 text-white shadow-lg shadow-emerald-200' 
-              : 'bg-white border-slate-200'
+              : 'bg-white border-slate-200 hover:border-emerald-400'
           }`}
         >
           {isSelected && <Check className="w-4 h-4" />}
         </button>
 
         <div className="flex-1 flex flex-col gap-3 min-w-0">
-          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
-            {record.reds.split(',').map((n, i) => (
-              <span key={`r${i}`} className="w-8 h-8 md:w-9 md:h-9 rounded-full bg-red-500 text-white flex-shrink-0 flex items-center justify-center text-xs md:text-sm font-black shadow-md shadow-red-100">
-                {n}
-              </span>
-            ))}
-            <div className="w-px h-5 bg-slate-200 mx-0.5 flex-shrink-0"></div>
-            {record.blues.split(',').map((n, i) => (
-              <span key={`b${i}`} className="w-8 h-8 md:w-9 md:h-9 rounded-full bg-blue-500 text-white flex-shrink-0 flex items-center justify-center text-xs md:text-sm font-black shadow-md shadow-blue-100">
-                {n}
-              </span>
-            ))}
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 md:gap-2 overflow-x-auto no-scrollbar pb-1">
+              {record.reds.split(',').map((n, i) => (
+                <span key={`r${i}`} className="w-7 h-7 md:w-9 md:h-9 rounded-full bg-red-500 text-white flex-shrink-0 flex items-center justify-center text-[10px] md:text-sm font-black shadow-md shadow-red-100">
+                  {n}
+                </span>
+              ))}
+              <div className="w-px h-5 bg-slate-200 mx-0.5 flex-shrink-0"></div>
+              {record.blues.split(',').map((n, i) => (
+                <span key={`b${i}`} className="w-7 h-7 md:w-9 md:h-9 rounded-full bg-blue-500 text-white flex-shrink-0 flex items-center justify-center text-[10px] md:text-sm font-black shadow-md shadow-blue-100">
+                  {n}
+                </span>
+              ))}
+            </div>
+
+            {/* Favorite Star Button */}
+            <button 
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleFavorite(record.id!, !record.isPinned);
+              }}
+              className={`flex-shrink-0 p-2 rounded-xl transition-all active:scale-90 ${
+                record.isPinned 
+                  ? 'text-amber-500 bg-amber-50 border border-amber-100 shadow-sm' 
+                  : 'text-slate-300 hover:text-slate-400 hover:bg-slate-50'
+              }`}
+            >
+              <Star className={`w-5 h-5 ${record.isPinned ? 'fill-current' : ''}`} />
+            </button>
           </div>
 
           <div className="flex items-center justify-between">
@@ -105,9 +129,8 @@ const SwipeableItem = ({
                 {record.toolUsed === 'REDUCER' ? '缩水' : record.toolUsed === 'RANDOM' ? '随机' : '反向'}
               </span>
               {record.isPinned && (
-                <div className="flex items-center gap-1 text-[10px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100">
-                  <Pin className="w-2.5 h-2.5 fill-current" />
-                  已固定
+                <div className="flex items-center gap-1 text-[10px] font-black text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-100">
+                  已收藏
                 </div>
               )}
             </div>
@@ -119,7 +142,7 @@ const SwipeableItem = ({
                   e.stopPropagation();
                   onUpdateMultiplier(record.id!, -1);
                 }}
-                className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white text-slate-400 hover:text-slate-900 disabled:opacity-30"
+                className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white text-slate-400 hover:text-slate-900 disabled:opacity-30 transition-colors"
                 disabled={(record.multiplier || 1) <= 1}
               >
                 <Minus className="w-3.5 h-3.5" />
@@ -132,7 +155,7 @@ const SwipeableItem = ({
                   e.stopPropagation();
                   onUpdateMultiplier(record.id!, 1);
                 }}
-                className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white text-slate-400 hover:text-slate-900"
+                className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white text-slate-400 hover:text-slate-900 transition-colors"
               >
                 <Plus className="w-3.5 h-3.5" />
               </button>
@@ -169,16 +192,31 @@ export default function SavedPage() {
   }, []);
 
   const handleDelete = async (id: number) => {
-    await storage.removeFromSelection(id);
-    loadRecords();
-    window.dispatchEvent(new Event('selection-updated'));
-    toast.show('已删除该项', 'success');
+    const record = records.find(r => r.id === id);
+    if (!record) return;
+
+    const performDelete = async () => {
+      await storage.removeFromSelection(id);
+      loadRecords();
+      window.dispatchEvent(new Event('selection-updated'));
+      toast.show('已从列表中移除', 'success');
+    };
+
+    if (record.isPinned) {
+      toast.confirm({
+        title: '删除收藏项',
+        message: '该号码已被收藏，确定要将其从列表中永久移除吗？',
+        onConfirm: performDelete
+      });
+    } else {
+      await performDelete();
+    }
   };
 
-  const handleTogglePin = async (id: number, isPinned: boolean) => {
+  const handleToggleFavorite = async (id: number, isPinned: boolean) => {
     await storage.updateSelection(id, { isPinned });
     loadRecords();
-    toast.show(isPinned ? '已固定该号码组' : '已取消固定', 'info');
+    toast.show(isPinned ? '已加入收藏' : '已取消收藏', 'info');
   };
 
   const handleUpdateMultiplier = async (id: number, delta: number) => {
@@ -215,23 +253,68 @@ export default function SavedPage() {
 
     try {
       await navigator.clipboard.writeText(text);
-      toast.show('已复制到剪贴板', 'success');
-
-      // Clear selection and remove unpinned items
-      const toDelete = selectedRecords.filter(r => !r.isPinned).map(r => r.id!);
+      toast.show('已复制到剪贴板，祝您中大奖！ 🎉', 'success');
       
-      if (toDelete.length > 0) {
-        for (const id of toDelete) {
-          await storage.removeFromSelection(id);
-        }
-        window.dispatchEvent(new Event('selection-updated'));
-      }
-      
-      setSelectedIds(new Set());
-      loadRecords();
+      // Celebratory animation
+      confetti({
+        particleCount: 150,
+        spread: 70,
+        origin: { y: 0.8 },
+        colors: ['#f59e0b', '#10b981', '#3b82f6', '#ef4444', '#8b5cf6']
+      });
     } catch {
       toast.show('复制失败，请重试', 'error');
     }
+  };
+
+  const handleDeleteSelected = async () => {
+    if (selectedIds.size === 0) return;
+    
+    const selectedRecords = records.filter(r => selectedIds.has(r.id!));
+    const favoriteCount = selectedRecords.filter(r => r.isPinned).length;
+    
+    const message = favoriteCount > 0 
+      ? `确定要删除选中的 ${selectedIds.size} 注号码吗？（其中包含 ${favoriteCount} 注收藏号码）`
+      : `确定要删除选中的 ${selectedIds.size} 注号码吗？`;
+
+    toast.confirm({
+      title: '确认批量删除',
+      message,
+      onConfirm: async () => {
+        for (const id of Array.from(selectedIds)) {
+          await storage.removeFromSelection(id);
+        }
+        setSelectedIds(new Set());
+        loadRecords();
+        window.dispatchEvent(new Event('selection-updated'));
+        toast.show('已批量删除选中项', 'success');
+      }
+    });
+  };
+
+  const handleClearCurrent = async () => {
+    const currentTabRecords = records.filter(r => r.type === activeTab);
+    const nonFavorites = currentTabRecords.filter(r => !r.isPinned);
+    
+    if (currentTabRecords.length === 0) return;
+
+    if (nonFavorites.length === 0) {
+      toast.show('当前页全是收藏号码，如需删除请手动操作', 'info');
+      return;
+    }
+
+    toast.confirm({
+      title: '一键清理',
+      message: `将清理当前页 ${nonFavorites.length} 注未收藏的号码，保留收藏号码。确认吗？`,
+      onConfirm: async () => {
+        for (const record of nonFavorites) {
+          await storage.removeFromSelection(record.id!);
+        }
+        loadRecords();
+        window.dispatchEvent(new Event('selection-updated'));
+        toast.show('清理完成', 'success');
+      }
+    });
   };
 
   // Grouping logic for the ACTIVE TAB
@@ -239,18 +322,78 @@ export default function SavedPage() {
   const ssqCount = records.filter(r => r.type === 'SSQ').length;
   const dltCount = records.filter(r => r.type === 'DLT').length;
 
+  const selectedInCurrentTab = filteredRecords.filter(r => selectedIds.has(r.id!));
+  const isAllSelected = filteredRecords.length > 0 && selectedInCurrentTab.length === filteredRecords.length;
+  const isPartialSelected = selectedInCurrentTab.length > 0 && selectedInCurrentTab.length < filteredRecords.length;
+
+  // Calculate total cost for selected items
+  const totalCost = selectedInCurrentTab.reduce((acc, curr) => acc + (curr.multiplier || 1) * 2, 0);
+
+  const handleSelectAll = () => {
+    if (isAllSelected) {
+      // Unselect all in current tab
+      setSelectedIds(prev => {
+        const next = new Set(prev);
+        filteredRecords.forEach(r => next.delete(r.id!));
+        return next;
+      });
+    } else {
+      // Select all in current tab
+      setSelectedIds(prev => {
+        const next = new Set(prev);
+        filteredRecords.forEach(r => next.add(r.id!));
+        return next;
+      });
+    }
+  };
+
   return (
     <div className="relative min-h-full p-4 md:p-8 max-w-7xl mx-auto pb-40 md:pb-32 overflow-x-hidden">
       {/* Background Blobs */}
       <div className="absolute top-0 right-0 -z-10 w-96 h-96 bg-blue-50 rounded-full blur-3xl opacity-50 -mr-24 -mt-24 pointer-events-none" />
       
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10 md:mb-16">
-        {/* Tab Switcher */}
-        <LotteryTabSwitcher 
-          activeTab={activeTab} 
-          onTabChange={setActiveTab} 
-          counts={{ SSQ: ssqCount, DLT: dltCount }}
-        />
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-6 md:mb-10">
+        {/* Tab Switcher & Actions */}
+        <div className="flex flex-wrap items-center justify-between w-full gap-4">
+          <LotteryTabSwitcher 
+            activeTab={activeTab} 
+            onTabChange={setActiveTab} 
+            counts={{ SSQ: ssqCount, DLT: dltCount }}
+          />
+
+          <div className="flex items-center gap-2">
+            {filteredRecords.length > 0 && (
+              <>
+                <button 
+                  onClick={handleClearCurrent}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-black bg-white text-rose-500 border border-rose-100 hover:bg-rose-50 transition-all shadow-sm"
+                  title="清理未收藏号码"
+                >
+                  <RefreshCcw className="w-4 h-4" />
+                  <span className="hidden sm:inline">一键清理</span>
+                </button>
+                <button 
+                  onClick={handleSelectAll}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-black transition-all ${
+                    isAllSelected 
+                      ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-200' 
+                      : isPartialSelected
+                        ? 'bg-emerald-50 text-emerald-600 border border-emerald-200 shadow-sm'
+                        : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 shadow-sm'
+                  }`}
+                >
+                  <div className={`w-4 h-4 rounded-md flex items-center justify-center border-2 transition-colors ${
+                    isAllSelected ? 'bg-white border-white text-emerald-500' : isPartialSelected ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-slate-300'
+                  }`}>
+                    {isAllSelected && <Check className="w-3 h-3" strokeWidth={4} />}
+                    {isPartialSelected && <Minus className="w-3 h-3" strokeWidth={4} />}
+                  </div>
+                  <span>{isAllSelected ? '取消全选' : isPartialSelected ? '选中当前' : '全选'}</span>
+                </button>
+              </>
+            )}
+          </div>
+        </div>
       </div>
 
       {loading ? (
@@ -259,21 +402,44 @@ export default function SavedPage() {
           <p className="font-black text-slate-400 uppercase tracking-widest text-sm">正在整理您的选号单...</p>
         </div>
       ) : filteredRecords.length === 0 ? (
-        <div className="text-center py-24 md:py-32 bg-white/50 backdrop-blur-sm rounded-[40px] border-2 border-dashed border-slate-200 shadow-sm p-8">
+        <div className="text-center py-16 md:py-32 bg-white/50 backdrop-blur-sm rounded-[40px] border-2 border-dashed border-slate-200 shadow-sm p-8">
           <div className="w-20 h-20 bg-slate-50 text-slate-200 rounded-full flex items-center justify-center mx-auto mb-8 shadow-inner">
             <LayoutGrid className="w-10 h-10" />
           </div>
           <h3 className="text-xl md:text-2xl font-black text-slate-900 mb-3">暂无{activeTab === 'SSQ' ? '双色球' : '大乐透'}选号</h3>
-          <p className="text-sm md:text-base text-slate-500 font-medium">在缩水、随机或反向模块生成的号码将在这里显示</p>
+          <p className="text-sm md:text-base text-slate-500 font-medium mb-10 max-w-md mx-auto">
+            在缩水、随机或反向模块生成的号码将在这里显示。您可以先去生成一些号码：
+          </p>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl mx-auto">
+            <Link href="/reducer" className="flex flex-col items-center gap-3 p-6 rounded-[32px] bg-white border border-slate-100 shadow-xl shadow-slate-200/50 hover:-translate-y-1 transition-all group">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-500 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <Calculator className="w-6 h-6" />
+              </div>
+              <span className="font-black text-slate-700">缩水过滤</span>
+            </Link>
+            <Link href="/random" className="flex flex-col items-center gap-3 p-6 rounded-[32px] bg-white border border-slate-100 shadow-xl shadow-slate-200/50 hover:-translate-y-1 transition-all group">
+              <div className="w-12 h-12 rounded-2xl bg-orange-50 text-orange-500 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <RefreshCcw className="w-6 h-6" />
+              </div>
+              <span className="font-black text-slate-700">智能随机</span>
+            </Link>
+            <Link href="/reverse" className="flex flex-col items-center gap-3 p-6 rounded-[32px] bg-white border border-slate-100 shadow-xl shadow-slate-200/50 hover:-translate-y-1 transition-all group">
+              <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-500 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <LayoutGrid className="w-6 h-6" />
+              </div>
+              <span className="font-black text-slate-700">反向博弈</span>
+            </Link>
+          </div>
         </div>
       ) : (
         <div className="grid gap-2">
           {filteredRecords.map(record => (
-            <div key={record.id} className="w-full overflow-hidden">
+            <div key={record.id} className="w-full">
               <SwipeableItem 
                 record={record} 
                 onDelete={handleDelete}
-                onTogglePin={handleTogglePin}
+                onToggleFavorite={handleToggleFavorite}
                 onUpdateMultiplier={handleUpdateMultiplier}
                 onToggleSelect={toggleSelect}
                 isSelected={selectedIds.has(record.id!)}
@@ -284,33 +450,54 @@ export default function SavedPage() {
       )}
 
       {/* Floating Action Bar */}
-      {selectedIds.size > 0 && (
-        <div className="fixed bottom-24 md:bottom-10 left-0 right-0 px-6 z-40 flex justify-center">
-          <motion.div 
-            initial={{ y: 100, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            className="bg-slate-900/90 backdrop-blur-xl border border-white/10 px-6 py-4 rounded-3xl shadow-2xl flex items-center gap-6 max-w-md w-full"
-          >
-            <div className="flex-1">
-              <p className="text-white font-black text-lg leading-tight">已选 {selectedIds.size} 注</p>
-              <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mt-0.5">复制后非固定项将自动清空</p>
-            </div>
-            <button 
-              onClick={handleCopySelected}
-              className="bg-emerald-500 hover:bg-emerald-600 text-white font-black px-6 py-3 rounded-2xl shadow-lg shadow-emerald-500/20 flex items-center gap-2"
+      <AnimatePresence>
+        {selectedIds.size > 0 && (
+          <div className="fixed bottom-24 md:bottom-10 left-0 right-0 px-4 md:px-6 z-40 flex justify-center">
+            <motion.div 
+              initial={{ y: 100, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 100, opacity: 0 }}
+              className="bg-slate-900/90 backdrop-blur-xl border border-white/10 px-4 md:px-6 py-4 rounded-[32px] shadow-2xl flex items-center gap-3 md:gap-4 max-w-2xl w-full"
             >
-              <Copy className="w-4 h-4" />
-              <span>复制已选</span>
-            </button>
-            <button 
-              onClick={() => setSelectedIds(new Set())}
-              className="p-2 text-slate-400 hover:text-white transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </motion.div>
-        </div>
-      )}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <p className="text-white font-black text-base md:text-lg leading-tight">已选 {selectedIds.size} 注</p>
+                  <div className="h-4 w-px bg-white/20" />
+                  <p className="text-emerald-400 font-black text-base md:text-lg">¥{totalCost}</p>
+                </div>
+                <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mt-1 truncate">
+                  {isAllSelected ? '已全选当前列表' : '可批量复制或删除'}
+                </p>
+              </div>
+              
+              <div className="flex items-center gap-1.5 md:gap-2">
+                <button 
+                  onClick={handleDeleteSelected}
+                  className="p-3 bg-rose-500/20 hover:bg-rose-500 text-rose-500 hover:text-white rounded-2xl transition-all"
+                  title="删除已选"
+                >
+                  <Trash2 className="w-5 h-5" />
+                </button>
+                <button 
+                  onClick={handleCopySelected}
+                  className="bg-emerald-500 hover:bg-emerald-600 text-white font-black px-4 md:px-6 py-3 rounded-2xl shadow-lg shadow-emerald-500/20 flex items-center gap-2 transition-all active:scale-95"
+                >
+                  <Copy className="w-4 h-4" />
+                  <span className="hidden sm:inline">复制选号</span>
+                  <span className="sm:hidden text-xs">复制</span>
+                </button>
+                <button 
+                  onClick={() => setSelectedIds(new Set())}
+                  className="p-2 text-slate-400 hover:text-white transition-colors"
+                  title="取消选择"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
