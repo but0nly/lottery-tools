@@ -266,7 +266,24 @@ export default function SavedPage() {
     }).join('\n');
 
     try {
-      await navigator.clipboard.writeText(text);
+      // Modern API (Requires HTTPS)
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        // Fallback for HTTP/older browsers
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+        textArea.style.position = "fixed";
+        textArea.style.left = "-9999px";
+        textArea.style.top = "0";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        const successful = document.execCommand('copy');
+        document.body.removeChild(textArea);
+        if (!successful) throw new Error('Fallback failed');
+      }
+      
       toast.show('已复制到剪贴板，祝您中大奖！ 🎉', 'success');
       
       // Celebratory animation
