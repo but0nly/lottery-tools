@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { DesktopSidebar, MobileHeader, MobileNav } from "@/components/Sidebar";
-import { Cart } from "@/components/Cart";
-import { CartButton } from "@/components/CartButton";
 import { NotificationContainer } from "@/components/NotificationContainer";
 import { FlyToCartAnimationContainer } from "@/components/FlyToCartAnimation";
 
@@ -28,9 +26,6 @@ export default function RootLayout({
 
           {/* 中间伸缩滚动区 */}
           <main className="flex-1 overflow-y-auto w-full relative overscroll-behavior-none">
-            <div className="hidden md:flex absolute top-6 right-8 z-40">
-              <CartButton className="bg-white shadow-md hover:shadow-lg rounded-full p-3 text-slate-600 hover:text-slate-900 transition-all border border-slate-100" />
-            </div>
             {children}
           </main>
         </div>
@@ -38,7 +33,6 @@ export default function RootLayout({
         {/* 底部固定栏 (移动端) */}
         <MobileNav />
 
-        <Cart />
         <NotificationContainer />
         <FlyToCartAnimationContainer />
       </body>

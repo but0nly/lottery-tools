@@ -4,9 +4,8 @@ import { useEffect, useState, useCallback } from 'react';
 import { BallPicker } from '@/components/BallPicker';
 import { generateCombinations, LotteryType, FilterConditions, WheelingMode } from '@/lib/combinations';
 import { storage, ReducerSettings } from '@/lib/storage';
-import { refreshCart } from '@/components/Cart';
 import { toast } from '@/lib/notification';
-import { CheckCircle2, AlertTriangle, Loader2, Plus, ShoppingCart, Bookmark, Shuffle, HelpCircle, Info, Calculator, Trash2 } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, Loader2, Plus, Pin, Shuffle, HelpCircle, Info, Calculator, Trash2 } from 'lucide-react';
 
 import { LotteryTabSwitcher } from '@/components/LotteryTabSwitcher';
 import { triggerFlyToCart } from '@/components/FlyToCartAnimation';
@@ -23,18 +22,17 @@ export default function ReducerPage() {
   const [isInitialized, setIsInitialized] = useState(false);
   
   // Track existing data for active states
-  const [inCartKeys, setInCartKeys] = useState<Set<string>>(new Set());
-  const [inSavedKeys, setInSavedKeys] = useState<Set<string>>(new Set());
+  const [inSelectionKeys, setInSelectionKeys] = useState<Set<string>>(new Set());
+  const [pinnedKeys, setPinnedKeys] = useState<Set<string>>(new Set());
 
   const loadExistingStates = useCallback(async () => {
-    const [cart, saved, settings] = await Promise.all([
-      storage.getCart(),
-      storage.getAllSaved(),
+    const [selection, settings] = await Promise.all([
+      storage.getSelection(),
       storage.getSettings<ReducerSettings>('reducer_params')
     ]);
     
-    setInCartKeys(new Set(cart.map(i => `${i.type}|${i.reds}|${i.blues}`)));
-    setInSavedKeys(new Set(saved.map(i => `${i.type}|${i.reds}|${i.blues}`)));
+    setInSelectionKeys(new Set(selection.map(i => `${i.type}|${i.reds}|${i.blues}`)));
+    setPinnedKeys(new Set(selection.filter(i => i.isPinned).map(i => `${i.type}|${i.reds}|${i.blues}`)));
 
     if (settings) {
       if (settings.type) setType(settings.type);
@@ -48,8 +46,8 @@ export default function ReducerPage() {
 
   useEffect(() => {
     loadExistingStates();
-    window.addEventListener('cart-updated', loadExistingStates);
-    return () => window.removeEventListener('cart-updated', loadExistingStates);
+    window.addEventListener('selection-updated', loadExistingStates);
+    return () => window.removeEventListener('selection-updated', loadExistingStates);
   }, [loadExistingStates]);
 
   const [conditions, setConditions] = useState<FilterConditions>({
@@ -112,27 +110,29 @@ export default function ReducerPage() {
     }, 300);
   };
 
-  const handleSaveAll = async () => {
+  const handlePinAll = async () => {
     let saved = 0;
     for (const r of results) {
-      await storage.save({
+      await storage.addToSelection({
         type,
         reds: r.reds.map(n => n.toString().padStart(2, '0')).join(','),
         blues: r.blues.map(n => n.toString().padStart(2, '0')).join(','),
-        toolUsed: 'REDUCER'
+        toolUsed: 'REDUCER',
+        isPinned: true
       });
       saved++;
     }
-    toast.show(`成功保存 ${saved} 注组合到收藏库`, 'success');
+    window.dispatchEvent(new Event('selection-updated'));
+    toast.show(`成功固定 ${saved} 注缩水选号`, 'success');
     loadExistingStates();
   };
 
-  const handleAddToCartAll = async (e: React.MouseEvent) => {
+  const handleAddToSelectionAll = async (e: React.MouseEvent) => {
     triggerFlyToCart(e, 'bg-emerald-500');
     let saved = 0;
     let skipped = 0;
     for (const r of results) {
-      const result = await storage.addToCart({
+      const result = await storage.addToSelection({
         type,
         reds: r.reds.map(n => n.toString().padStart(2, '0')).join(','),
         blues: r.blues.map(n => n.toString().padStart(2, '0')).join(','),
@@ -141,11 +141,11 @@ export default function ReducerPage() {
       if (result) saved++;
       else skipped++;
     }
-    refreshCart();
+    window.dispatchEvent(new Event('selection-updated'));
     if (saved > 0) {
-      toast.show(`成功加购 ${saved} 注${skipped > 0 ? ` (跳过 ${skipped} 注重复)` : ''}`, 'success');
+      toast.show(`成功加入 ${saved} 注选号${skipped > 0 ? ` (跳过 ${skipped} 注重复)` : ''}`, 'success');
     } else if (skipped > 0) {
-      toast.show(`选中的方案均已在购物车中`, 'info');
+      toast.show(`选中的方案均已在选号单中`, 'info');
     }
   };
 
@@ -389,18 +389,18 @@ export default function ReducerPage() {
             {results.length > 0 && (
               <div className="flex gap-2">
                 <button 
-                  onClick={(e) => handleAddToCartAll(e)}
+                  onClick={(e) => handleAddToSelectionAll(e)}
                   className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-500 text-white rounded-xl text-xs font-black hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-100 active:scale-95"
                 >
-                  <ShoppingCart className="w-3.5 h-3.5" />
-                  全部加购
+                  <Plus className="w-3.5 h-3.5" />
+                  全部加入
                 </button>
                 <button 
-                  onClick={handleSaveAll}
+                  onClick={handlePinAll}
                   className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-black hover:bg-slate-800 transition-all shadow-lg shadow-slate-200 active:scale-95"
                 >
-                  <Bookmark className="w-3.5 h-3.5" />
-                  全部收藏
+                  <Pin className="w-3.5 h-3.5" />
+                  全部固定
                 </button>
               </div>
             )}
@@ -422,8 +422,8 @@ export default function ReducerPage() {
                 const redsStr = r.reds.map(n => n.toString().padStart(2, '0')).join(',');
                 const bluesStr = r.blues.map(n => n.toString().padStart(2, '0')).join(',');
                 const key = `${type}|${redsStr}|${bluesStr}`;
-                const isSaved = inSavedKeys.has(key);
-                const isInCart = inCartKeys.has(key);
+                const isPinned = pinnedKeys.has(key);
+                const isInSelection = inSelectionKeys.has(key);
 
                 return (
                   <div key={i} className="flex flex-col gap-2 p-3 bg-slate-50/50 border border-white rounded-2xl transition-all hover:bg-white hover:shadow-xl hover:shadow-slate-100 group relative overflow-hidden">
@@ -457,51 +457,55 @@ export default function ReducerPage() {
                     <div className="flex items-center justify-end gap-2">
                       <button 
                         onClick={async () => {
-                          if (isSaved) {
-                            await storage.deleteSavedByContent(type, redsStr, bluesStr);
-                            toast.show('已从库中移除', 'info');
+                          if (isPinned) {
+                            const items = await storage.getSelection();
+                            const item = items.find(i => i.type === type && i.reds === redsStr && i.blues === bluesStr);
+                            if (item) await storage.updateSelection(item.id!, { isPinned: false });
+                            toast.show('已取消固定', 'info');
                           } else {
-                            await storage.save({
+                            await storage.addToSelection({
                               type,
                               reds: redsStr,
                               blues: bluesStr,
-                              toolUsed: 'REDUCER'
+                              toolUsed: 'REDUCER',
+                              isPinned: true
                             });
-                            toast.show('已成功保存至收藏库', 'success');
+                            toast.show('已固定选号', 'success');
                           }
+                          window.dispatchEvent(new Event('selection-updated'));
                           loadExistingStates();
                         }}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all ${isSaved ? 'text-indigo-600 bg-indigo-50 shadow-inner' : 'text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 bg-white shadow-sm border border-slate-100'}`}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all ${isPinned ? 'text-indigo-600 bg-indigo-50 shadow-inner' : 'text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 bg-white shadow-sm border border-slate-100'}`}
                       >
-                        <Bookmark className={`w-3.5 h-3.5 ${isSaved ? 'fill-current' : ''}`} />
-                        {isSaved ? '已收藏' : '收藏'}
+                        <Pin className={`w-3.5 h-3.5 ${isPinned ? 'fill-current' : ''}`} />
+                        {isPinned ? '已固定' : '固定'}
                       </button>
                       <button 
                         onClick={async (e) => {
-                          if (isInCart) {
-                            await storage.removeFromCartByContent(type, redsStr, bluesStr);
-                            refreshCart();
-                            toast.show('已从购物车移除', 'info');
+                          if (isInSelection) {
+                            await storage.removeFromSelectionByContent(type, redsStr, bluesStr);
+                            window.dispatchEvent(new Event('selection-updated'));
+                            toast.show('已从选号单移除', 'info');
                             loadExistingStates();
                           } else {
                             triggerFlyToCart(e, 'bg-emerald-500');
                             setTimeout(async () => {
-                              await storage.addToCart({
+                              await storage.addToSelection({
                                 type,
                                 reds: redsStr,
                                 blues: bluesStr,
                                 toolUsed: 'REDUCER'
                               });
-                              refreshCart();
-                              toast.show('已加入购物车', 'success');
+                              window.dispatchEvent(new Event('selection-updated'));
+                              toast.show('已加入选号单', 'success');
                               loadExistingStates();
                             }, 600);
                           }
                         }}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all ${isInCart ? 'text-emerald-600 bg-emerald-50 shadow-inner' : 'text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 bg-white shadow-sm border border-slate-100'}`}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all ${isInSelection ? 'text-emerald-600 bg-emerald-50 shadow-inner' : 'text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 bg-white shadow-sm border border-slate-100'}`}
                       >
-                        {isInCart ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
-                        {isInCart ? '已加购' : '加购'}
+                        {isInSelection ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
+                        {isInSelection ? '已加入' : '加入'}
                       </button>
                     </div>
                   </div>

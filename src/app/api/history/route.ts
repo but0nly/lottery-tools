@@ -1,5 +1,17 @@
 import { NextResponse } from 'next/server';
 
+interface ApiHistoryItem {
+  one: string;
+  two: string;
+  three: string;
+  four: string;
+  five: string;
+  six: string;
+  seven: string;
+  day: string;
+  code: string;
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const type = searchParams.get('type') || 'ssq';
@@ -21,7 +33,7 @@ export async function GET(request: Request) {
     }
 
     // Transform to the format expected by our frontend
-    const history = data.data.data.list.map((item: any) => {
+    const history = data.data.data.list.map((item: ApiHistoryItem) => {
       if (type.toUpperCase() === 'SSQ') {
         return {
           reds: [item.one, item.two, item.three, item.four, item.five, item.six].join(','),

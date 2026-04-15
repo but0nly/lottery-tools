@@ -2,21 +2,21 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Home, Calculator, History, Bookmark, Dices } from 'lucide-react';
-import { CartButton } from './CartButton';
+import { storage } from '@/lib/storage';
 
 const navItems = [
   { href: '/', label: '首页', icon: Home, activeColor: 'text-emerald-500' },
   { href: '/reducer', label: '缩水', icon: Calculator, activeColor: 'text-emerald-500' },
   { href: '/random', label: '随机', icon: Dices, activeColor: 'text-orange-500', special: true },
   { href: '/reverse', label: '反向', icon: History, activeColor: 'text-rose-500' },
-  { href: '/saved', label: '库', icon: Bookmark, activeColor: 'text-blue-500' },
+  { href: '/selection', label: '选号', icon: Bookmark, activeColor: 'text-blue-500' },
 ];
 
 const getPageTitle = (pathname: string) => {
   const currentItem = navItems.find(item => item.href === pathname);
-  return currentItem?.label === '库' ? '我的收藏库' : 
+  return currentItem?.label === '选号' ? '我的选号单' : 
          currentItem?.label === '缩水' ? '组合缩水选号' : 
          currentItem?.label === '反向' ? '反向冷门分析' : 
          currentItem?.label === '随机' ? '智能随机选号' : 
@@ -39,8 +39,6 @@ export function MobileHeader() {
           <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">{pageTitle}</span>
         </div>
       </div>
-
-      <CartButton className="text-slate-500 hover:text-slate-900 bg-slate-100/40 hover:bg-slate-100 rounded-2xl p-2.5 transition-all active:scale-90" />
     </header>
   );
 }
@@ -48,6 +46,26 @@ export function MobileHeader() {
 // 桌面端侧边栏
 export function DesktopSidebar() {
   const pathname = usePathname();
+  const [count, setCount] = useState(0);
+
+  const loadCount = useCallback(async () => {
+    const items = await storage.getSelection();
+    setCount(items.length);
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      loadCount();
+    }, 0);
+    window.addEventListener('selection-updated', loadCount);
+    // Backward compatibility for old events
+    window.addEventListener('cart-updated', loadCount);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('selection-updated', loadCount);
+      window.removeEventListener('cart-updated', loadCount);
+    };
+  }, [loadCount]);
 
   return (
     <div className="hidden md:flex w-64 bg-slate-950 text-slate-100 h-full flex-col flex-shrink-0 border-r border-slate-800/50 relative overflow-hidden">
@@ -69,6 +87,7 @@ export function DesktopSidebar() {
       <nav className="flex-1 px-4 space-y-1.5 relative">
         {navItems.map((item) => {
           const isActive = pathname === item.href;
+          const isSelection = item.label === '选号';
           return (
             <Link 
               key={item.href}
@@ -79,7 +98,17 @@ export function DesktopSidebar() {
                   : 'text-slate-400 hover:bg-white/5 hover:text-slate-100'
               }`}
             >
-              <item.icon className={`w-5 h-5 transition-transform group-hover:scale-110 ${isActive ? item.activeColor : 'text-slate-500'}`} />
+              <div className="relative">
+                <item.icon 
+                  id={isSelection ? 'cart-icon' : undefined}
+                  className={`w-5 h-5 transition-transform group-hover:scale-110 ${isActive ? item.activeColor : 'text-slate-500'}`} 
+                />
+                {isSelection && count > 0 && (
+                  <span className="absolute -top-2 -right-2 bg-rose-500 text-white text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center border border-slate-950 animate-in zoom-in duration-300 shadow-lg shadow-rose-500/20">
+                    {count > 99 ? '99+' : count}
+                  </span>
+                )}
+              </div>
               <span className="font-bold tracking-tight">{getPageTitle(item.href)}</span>
               {isActive && (
                 <div className="ml-auto w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]" />
@@ -104,6 +133,25 @@ export function DesktopSidebar() {
 export function MobileNav() {
   const pathname = usePathname();
   const [isShaking, setIsShaking] = useState(false);
+  const [count, setCount] = useState(0);
+
+  const loadCount = useCallback(async () => {
+    const items = await storage.getSelection();
+    setCount(items.length);
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      loadCount();
+    }, 0);
+    window.addEventListener('selection-updated', loadCount);
+    window.addEventListener('cart-updated', loadCount);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('selection-updated', loadCount);
+      window.removeEventListener('cart-updated', loadCount);
+    };
+  }, [loadCount]);
 
   const handleDiceClick = useCallback(() => {
     setIsShaking(true);
@@ -115,6 +163,7 @@ export function MobileNav() {
       <nav className="bg-white/95 backdrop-blur-2xl border border-white/50 shadow-[0_15px_50px_-12px_rgba(0,0,0,0.15)] rounded-[28px] flex justify-around items-center h-[64px] px-1 max-w-md mx-auto relative overflow-visible">
         {navItems.map((item) => {
           const isActive = pathname === item.href;
+          const isSelection = item.label === '选号';
           
           if (item.special) {
             return (
@@ -140,8 +189,16 @@ export function MobileNav() {
               href={item.href} 
               className="flex flex-col items-center justify-center flex-1 h-full transition-all active:scale-95 group relative"
             >
-              <div className={`p-2 rounded-xl transition-all ${isActive ? 'bg-slate-100 scale-105 shadow-inner' : 'group-hover:bg-slate-50/50'}`}>
-                <item.icon className={`w-5 h-5 transition-colors ${isActive ? `${item.activeColor}` : 'text-slate-400'}`} />
+              <div className={`p-2 rounded-xl transition-all ${isActive ? 'bg-slate-100 scale-105 shadow-inner' : 'group-hover:bg-slate-50/50'} relative`}>
+                <item.icon 
+                  id={isSelection ? 'cart-icon-mobile' : undefined}
+                  className={`w-5 h-5 transition-colors ${isActive ? `${item.activeColor}` : 'text-slate-400'}`} 
+                />
+                {isSelection && count > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[7px] font-black w-3.5 h-3.5 rounded-full flex items-center justify-center border border-white animate-in zoom-in duration-300 shadow-md">
+                    {count > 99 ? '99' : count}
+                  </span>
+                )}
               </div>
               <span className={`text-[9px] mt-0.5 font-bold transition-colors ${isActive ? 'text-slate-900' : 'text-slate-400'}`}>
                 {item.label}

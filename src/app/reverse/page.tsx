@@ -9,7 +9,6 @@ import {
   GameTheoryConfig
 } from '@/lib/combinations';
 import { storage, ReverseSettings } from '@/lib/storage';
-import { refreshCart } from '@/components/Cart';
 import { toast } from '@/lib/notification';
 import { 
   RefreshCw, 
@@ -19,10 +18,10 @@ import {
   Users, 
   Sliders, 
   Info, 
-  Bookmark, 
+  Pin, 
   HelpCircle, 
   History, 
-  ShoppingCart
+  Plus
 } from 'lucide-react';
 
 import { LotteryTabSwitcher } from '@/components/LotteryTabSwitcher';
@@ -39,27 +38,22 @@ export default function ReversePage() {
   const [isInitialized, setIsInitialized] = useState(false);
 
   // Track states for active buttons
-  const [isInCart, setIsInCart] = useState(false);
-  const [isSaved, setIsSaved] = useState(false);
+  const [isInSelection, setIsInSelection] = useState(false);
+  const [isPinned, setIsPinned] = useState(false);
 
   const checkExistingStates = useCallback(async () => {
     if (!result) {
-      setIsInCart(false);
-      setIsSaved(false);
+      setIsInSelection(false);
+      setIsPinned(false);
     } else {
       const redsStr = result.reds.map(n => n.toString().padStart(2, '0')).join(',');
       const bluesStr = result.blues.map(n => n.toString().padStart(2, '0')).join(',');
       
-      const [cart, saved] = await Promise.all([
-        storage.getCart(),
-        storage.getAllSaved()
-      ]);
+      const selection = await storage.getSelection();
 
-      const cartMatch = cart.some(i => i.type === type && i.reds === redsStr && i.blues === bluesStr);
-      const savedMatch = saved.some(i => i.type === type && i.reds === redsStr && i.blues === bluesStr);
-
-      setIsInCart(cartMatch);
-      setIsSaved(savedMatch);
+      const match = selection.find(i => i.type === type && i.reds === redsStr && i.blues === bluesStr);
+      setIsInSelection(!!match);
+      setIsPinned(match?.isPinned || false);
     }
     
     // Initial load of settings
@@ -77,8 +71,8 @@ export default function ReversePage() {
 
   useEffect(() => {
     checkExistingStates();
-    window.addEventListener('cart-updated', checkExistingStates);
-    return () => window.removeEventListener('cart-updated', checkExistingStates);
+    window.addEventListener('selection-updated', checkExistingStates);
+    return () => window.removeEventListener('selection-updated', checkExistingStates);
   }, [checkExistingStates]);
 
   // Save settings when they change
@@ -93,8 +87,8 @@ export default function ReversePage() {
   }, [type, mode, historySize, gtConfig, isInitialized]);
 
   const handleCalculate = async () => {
-    setIsSaved(false);
-    setIsInCart(false);
+    setIsPinned(false);
+    setIsInSelection(false);
     setIsLoading(true);
     
     // Slight delay for UX
@@ -122,47 +116,51 @@ export default function ReversePage() {
     }, 300);
   };
 
-  const handleSave = async () => {
+  const handlePin = async () => {
     if (!result) return;
     const redsStr = result.reds.map(n => n.toString().padStart(2, '0')).join(',');
     const bluesStr = result.blues.map(n => n.toString().padStart(2, '0')).join(',');
 
-    if (isSaved) {
-      await storage.deleteSavedByContent(type, redsStr, bluesStr);
-      toast.show('已从库中移除', 'info');
+    if (isPinned) {
+      const selection = await storage.getSelection();
+      const item = selection.find(i => i.type === type && i.reds === redsStr && i.blues === bluesStr);
+      if (item) await storage.updateSelection(item.id!, { isPinned: false });
+      toast.show('已取消固定', 'info');
     } else {
-      await storage.save({
+      await storage.addToSelection({
         type,
         reds: redsStr,
         blues: bluesStr,
-        toolUsed: 'REVERSE'
+        toolUsed: 'REVERSE',
+        isPinned: true
       });
-      toast.show('已成功保存至收藏库', 'success');
+      toast.show('已成功固定选号', 'success');
     }
+    window.dispatchEvent(new Event('selection-updated'));
     checkExistingStates();
   };
 
-  const handleAddToCart = async (e: React.MouseEvent) => {
+  const handleAddToSelection = async (e: React.MouseEvent) => {
     if (!result) return;
     const redsStr = result.reds.map(n => n.toString().padStart(2, '0')).join(',');
     const bluesStr = result.blues.map(n => n.toString().padStart(2, '0')).join(',');
     
-    if (isInCart) {
-      await storage.removeFromCartByContent(type, redsStr, bluesStr);
-      refreshCart();
-      toast.show('已从购物车移除', 'info');
+    if (isInSelection) {
+      await storage.removeFromSelectionByContent(type, redsStr, bluesStr);
+      window.dispatchEvent(new Event('selection-updated'));
+      toast.show('已从选号单移除', 'info');
     } else {
       triggerFlyToCart(e, 'bg-rose-500');
       
       setTimeout(async () => {
-        await storage.addToCart({
-          type,
+        await storage.addToSelection({
+          type: type,
           reds: redsStr,
           blues: bluesStr,
           toolUsed: 'REVERSE'
         });
-        refreshCart();
-        toast.show('已加入购物车', 'success');
+        window.dispatchEvent(new Event('selection-updated'));
+        toast.show('已加入选号单', 'success');
         checkExistingStates();
       }, 600);
     }
@@ -373,22 +371,22 @@ export default function ReversePage() {
                     
                     <div className="flex items-center justify-center gap-3">
                       <button 
-                        onClick={handleSave}
+                        onClick={handlePin}
                         className={`flex items-center gap-2.5 px-5 py-3 rounded-2xl text-xs md:text-sm font-black transition-all shadow-lg ${
-                          isSaved ? 'text-indigo-600 bg-indigo-50 shadow-inner ring-1 ring-indigo-200' : 'text-slate-600 bg-white border border-slate-100 hover:bg-slate-50 shadow-slate-100'
+                          isPinned ? 'text-indigo-600 bg-indigo-50 shadow-inner ring-1 ring-indigo-200' : 'text-slate-600 bg-white border border-slate-100 hover:bg-slate-50 shadow-slate-100'
                         }`}
                       >
-                        <Bookmark className={`w-4 h-4 md:w-5 md:h-5 ${isSaved ? 'fill-current' : ''}`} />
-                        {isSaved ? '已收藏' : '加入收藏'}
+                        <Pin className={`w-4 h-4 md:w-5 md:h-5 ${isPinned ? 'fill-current' : ''}`} />
+                        {isPinned ? '已固定' : '固定选号'}
                       </button>
                       <button 
-                        onClick={(e) => handleAddToCart(e)}
+                        onClick={(e) => handleAddToSelection(e)}
                         className={`flex items-center gap-2.5 px-5 py-3 rounded-2xl text-xs md:text-sm font-black transition-all shadow-lg ${
-                          isInCart ? 'text-orange-600 bg-orange-50 shadow-inner ring-1 ring-orange-200' : 'text-white bg-slate-900 hover:bg-slate-800 shadow-slate-200'
+                          isInSelection ? 'text-orange-600 bg-orange-50 shadow-inner ring-1 ring-orange-200' : 'text-white bg-slate-900 hover:bg-slate-800 shadow-slate-200'
                         }`}
                       >
-                        {isInCart ? <CheckCircle2 className="w-4 h-4 md:w-5 md:h-5" /> : <ShoppingCart className="w-4 h-4 md:w-5 md:h-5" />}
-                        {isInCart ? '已加购' : '加购物车'}
+                        {isInSelection ? <CheckCircle2 className="w-4 h-4 md:w-5 md:h-5" /> : <Plus className="w-4 h-4 md:w-5 md:h-5" />}
+                        {isInSelection ? '已加入' : '加入选号'}
                       </button>
                     </div>
                   </div>

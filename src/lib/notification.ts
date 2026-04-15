@@ -1,12 +1,12 @@
-type NotificationType = 'success' | 'error' | 'warning' | 'info';
+export type NotificationType = 'success' | 'error' | 'warning' | 'info';
 
-interface Notification {
+export interface NotificationItem {
   id: number;
   message: string;
   type: NotificationType;
 }
 
-type ConfirmOptions = {
+export type ConfirmOptions = {
   title: string;
   message: string;
   onConfirm: () => void;
@@ -14,13 +14,13 @@ type ConfirmOptions = {
 };
 
 class NotificationManager {
-  private listeners: Set<(notifications: Notification[]) => void> = new Set();
-  private notifications: Notification[] = [];
+  private listeners: Set<(notifications: NotificationItem[]) => void> = new Set();
+  private notifications: NotificationItem[] = [];
   private nextId = 1;
 
   private confirmListener: ((options: ConfirmOptions | null) => void) | null = null;
 
-  subscribe(listener: (notifications: Notification[]) => void) {
+  subscribe(listener: (notifications: NotificationItem[]) => void) {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
   }

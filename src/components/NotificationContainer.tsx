@@ -1,12 +1,12 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
-import { toast } from '@/lib/notification';
+import { toast, NotificationItem, ConfirmOptions } from '@/lib/notification';
 import { CheckCircle2, AlertCircle, AlertTriangle, Info, X } from 'lucide-react';
 
 export function NotificationContainer() {
-  const [notifications, setNotifications] = useState<any[]>([]);
-  const [confirmOptions, setConfirmOptions] = useState<any>(null);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [confirmOptions, setConfirmOptions] = useState<ConfirmOptions | null>(null);
 
   useEffect(() => {
     const unsubNotify = toast.subscribe(setNotifications);

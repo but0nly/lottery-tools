@@ -13,8 +13,9 @@ interface AnimationInstance {
 export function FlyToCartAnimationContainer() {
   const [animations, setAnimations] = useState<AnimationInstance[]>([]);
 
-  const handleFly = useCallback((event: any) => {
-    const { startX, startY, color = "bg-orange-500" } = event.detail;
+  const handleFly = useCallback((event: Event) => {
+    const customEvent = event as CustomEvent;
+    const { startX, startY, color = "bg-orange-500" } = customEvent.detail;
     const id = Date.now();
     setAnimations(prev => [...prev, { id, startX, startY, color }]);
   }, []);
@@ -47,13 +48,30 @@ function FlyToCartItem({ startX, startY, color, onComplete }: AnimationInstance 
   const [targetPos, setTargetPos] = useState<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
-    const cartIcon = document.getElementById('cart-icon');
+    // Try desktop icon first, then mobile icon
+    const cartIcon = document.getElementById('cart-icon') || document.getElementById('cart-icon-mobile');
     if (cartIcon) {
       const rect = cartIcon.getBoundingClientRect();
-      setTargetPos({
-        x: rect.left + rect.width / 2,
-        y: rect.top + rect.height / 2
-      });
+      // If the icon is not visible (e.g. display: none), find the other one
+      if (rect.width === 0 && rect.height === 0) {
+        const otherIcon = document.getElementById('cart-icon-mobile') || document.getElementById('cart-icon');
+        if (otherIcon) {
+          const otherRect = otherIcon.getBoundingClientRect();
+          setTimeout(() => {
+            setTargetPos({
+              x: otherRect.left + otherRect.width / 2,
+              y: otherRect.top + otherRect.height / 2
+            });
+          }, 0);
+          return;
+        }
+      }
+      setTimeout(() => {
+        setTargetPos({
+          x: rect.left + rect.width / 2,
+          y: rect.top + rect.height / 2
+        });
+      }, 0);
     } else {
       onComplete();
     }
@@ -96,8 +114,8 @@ function FlyToCartItem({ startX, startY, color, onComplete }: AnimationInstance 
  * Helper to trigger the fly animation from any component
  */
 export const triggerFlyToCart = (e: React.MouseEvent | { clientX: number, clientY: number }, color?: string) => {
-  const startX = 'clientX' in e ? e.clientX : (e as any).target?.getBoundingClientRect()?.left || 0;
-  const startY = 'clientY' in e ? e.clientY : (e as any).target?.getBoundingClientRect()?.top || 0;
+  const startX = 'clientX' in e ? e.clientX : (e as React.MouseEvent).clientX || 0;
+  const startY = 'clientY' in e ? e.clientY : (e as React.MouseEvent).clientY || 0;
 
   window.dispatchEvent(new CustomEvent('fly-to-cart-trigger', { 
     detail: { startX, startY, color } 
