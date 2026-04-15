@@ -32,6 +32,9 @@ const SwipeableItem = ({
   const [isOpen, setIsOpen] = useState(false);
   const x = useMotionValue(0);
   
+  // Controls the background opacity to prevent "red peek" when closed
+  const bgOpacity = useTransform(x, [-20, 0], [1, 0]);
+  
   // Controls the background "Delete" button reveal
   const deleteBtnOpacity = useTransform(x, [-100, -40], [1, 0]);
   const deleteScale = useTransform(x, [-100, -60], [1.1, 0.8]);
@@ -46,9 +49,12 @@ const SwipeableItem = ({
   };
 
   return (
-    <div className="relative overflow-hidden rounded-[24px] mb-4 group touch-pan-y">
+    <div className="relative overflow-hidden rounded-[24px] mb-4 group touch-pan-y bg-slate-100/50">
       {/* Background Action Layer (Revealed Delete Button) */}
-      <div className="absolute inset-y-0 right-0 w-32 bg-rose-500 flex items-center justify-end pr-8">
+      <motion.div 
+        style={{ opacity: bgOpacity }}
+        className="absolute inset-y-0 right-0 w-32 bg-rose-500 flex items-center justify-end pr-8"
+      >
         <motion.button 
           style={{ opacity: deleteBtnOpacity, scale: deleteScale }}
           onClick={() => {
@@ -60,7 +66,7 @@ const SwipeableItem = ({
           <Trash2 className="w-6 h-6" />
           <span className="text-[10px] font-black uppercase tracking-widest">删除</span>
         </motion.button>
-      </div>
+      </motion.div>
 
       {/* Main Content Layer */}
       <motion.div
@@ -71,7 +77,7 @@ const SwipeableItem = ({
         animate={{ x: isOpen ? -100 : 0 }}
         style={{ x }}
         transition={{ type: 'spring', stiffness: 400, damping: 40 }}
-        className={`bg-white p-4 md:p-5 border border-white shadow-xl shadow-slate-200/50 flex items-center gap-3 md:gap-4 relative z-10 w-full transition-colors ${record.isPinned ? 'bg-amber-50/20 border-amber-100/30' : ''}`}
+        className={`bg-white p-4 md:p-5 shadow-xl shadow-slate-200/50 flex items-center gap-3 md:gap-4 relative z-10 w-full transition-colors ${record.isPinned ? 'bg-amber-50/20' : ''}`}
         onClick={() => {
           if (isOpen) setIsOpen(false);
         }}
