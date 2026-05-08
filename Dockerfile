@@ -9,6 +9,9 @@ RUN corepack enable pnpm
 # Copy package.json, pnpm-lock.yaml and .npmrc (for registry mirror)
 COPY package.json pnpm-lock.yaml .npmrc ./
 
+# Configure pnpm to allow specific built dependencies
+RUN pnpm config set only-built-dependencies sharp,unrs-resolver
+
 # Install dependencies using pnpm
 RUN pnpm install --frozen-lockfile
 
