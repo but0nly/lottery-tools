@@ -2,9 +2,9 @@ import { WheelingMode, FilterConditions } from './combinations';
 
 // Browser-based storage using IndexedDB
 const DB_NAME = 'LotteryToolsDB';
-const DB_VERSION = 4; // Increment version for Selection feature
+const DB_VERSION = 5; // Updated to 5 for indexing
 const STORE_SAVED = 'saved_combinations';
-const STORE_SELECTION = 'cart_combinations'; // Reusing cart store but renaming concept
+const STORE_SELECTION = 'cart_combinations'; 
 const STORE_SETTINGS = 'algorithm_settings';
 
 export interface LotteryRecord {
@@ -49,12 +49,18 @@ export interface RandomSettings {
   betCount: number;
 }
 
+let dbInstance: IDBDatabase | null = null;
+
 const openDB = (): Promise<IDBDatabase> => {
+  if (dbInstance) return Promise.resolve(dbInstance);
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
 
     request.onerror = () => reject(request.error);
-    request.onsuccess = () => resolve(request.result);
+    request.onsuccess = () => {
+      dbInstance = request.result;
+      resolve(dbInstance);
+    };
 
     request.onupgradeneeded = (event) => {
       const db = (event.target as IDBOpenDBRequest).result;
@@ -63,9 +69,22 @@ const openDB = (): Promise<IDBDatabase> => {
       if (!db.objectStoreNames.contains(STORE_SAVED)) {
         db.createObjectStore(STORE_SAVED, { keyPath: 'id', autoIncrement: true });
       }
+      
+      let selectionStore: IDBObjectStore;
       if (!db.objectStoreNames.contains(STORE_SELECTION)) {
-        db.createObjectStore(STORE_SELECTION, { keyPath: 'id', autoIncrement: true });
+        selectionStore = db.createObjectStore(STORE_SELECTION, { keyPath: 'id', autoIncrement: true });
+      } else {
+        selectionStore = (event.target as IDBOpenDBRequest).transaction!.objectStore(STORE_SELECTION);
       }
+
+      // Add indexes to STORE_SELECTION
+      if (!selectionStore.indexNames.contains('idx_content')) {
+        selectionStore.createIndex('idx_content', ['type', 'reds', 'blues'], { unique: false });
+      }
+      if (!selectionStore.indexNames.contains('idx_createdAt')) {
+        selectionStore.createIndex('idx_createdAt', 'createdAt', { unique: false });
+      }
+
       if (!db.objectStoreNames.contains(STORE_SETTINGS)) {
         db.createObjectStore(STORE_SETTINGS, { keyPath: 'key' });
       }
@@ -143,38 +162,106 @@ export const storage = {
 
   // Selection Logic (Unified store)
   async addToSelection(combination: Omit<LotteryRecord, 'id' | 'createdAt'>) {
-    await openDB();
-    
-    // Check for duplicates in Selection
-    const existing = await this.getSelection();
-    const duplicate = existing.find(item => 
-      item.type === combination.type && 
-      item.reds === combination.reds && 
-      item.blues === combination.blues
-    );
-
-    if (duplicate) {
-      // If adding a pinned item and existing is not pinned, update it to pinned
-      if (combination.isPinned && !duplicate.isPinned) {
-        await this.updateSelection(duplicate.id!, { isPinned: true });
-        return duplicate.id;
-      }
-      return null;
-    }
-
     const db = await openDB();
     const transaction = db.transaction(STORE_SELECTION, 'readwrite');
     const store = transaction.objectStore(STORE_SELECTION);
+    const index = store.index('idx_content');
+
     return new Promise((resolve, reject) => {
-      const record = { 
-        ...combination, 
-        createdAt: Date.now(),
-        multiplier: combination.multiplier || 1,
-        isPinned: combination.isPinned || false
+      const getRequest = index.get([combination.type, combination.reds, combination.blues]);
+      
+      getRequest.onsuccess = () => {
+        const duplicate = getRequest.result as LotteryRecord;
+        if (duplicate) {
+          if (combination.isPinned && !duplicate.isPinned) {
+            duplicate.isPinned = true;
+            const putRequest = store.put(duplicate);
+            putRequest.onsuccess = () => resolve(duplicate.id);
+            putRequest.onerror = () => reject(putRequest.error);
+          } else {
+            resolve(null);
+          }
+          return;
+        }
+
+        const record = { 
+          ...combination, 
+          createdAt: Date.now(),
+          multiplier: combination.multiplier || 1,
+          isPinned: combination.isPinned || false
+        };
+        const addRequest = store.add(record);
+        addRequest.onsuccess = () => resolve(addRequest.result);
+        addRequest.onerror = () => reject(addRequest.error);
       };
-      const request = store.add(record);
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
+      getRequest.onerror = () => reject(getRequest.error);
+    });
+  },
+
+  // New: Batch Add to Selection
+  async addBatchToSelection(combinations: Omit<LotteryRecord, 'id' | 'createdAt'>[]) {
+    const db = await openDB();
+    const transaction = db.transaction(STORE_SELECTION, 'readwrite');
+    const store = transaction.objectStore(STORE_SELECTION);
+    const index = store.index('idx_content');
+
+    let savedCount = 0;
+    
+    return new Promise<{saved: number, skipped: number}>((resolve, reject) => {
+      let processed = 0;
+      let skipped = 0;
+
+      if (combinations.length === 0) {
+        resolve({ saved: 0, skipped: 0 });
+        return;
+      }
+
+      const processNext = () => {
+        if (processed === combinations.length) {
+          resolve({ saved: savedCount, skipped });
+          return;
+        }
+
+        const combination = combinations[processed];
+        const getRequest = index.get([combination.type, combination.reds, combination.blues]);
+
+        getRequest.onsuccess = () => {
+          const duplicate = getRequest.result as LotteryRecord;
+          if (duplicate) {
+            if (combination.isPinned && !duplicate.isPinned) {
+              duplicate.isPinned = true;
+              const putRequest = store.put(duplicate);
+              putRequest.onsuccess = () => {
+                savedCount++;
+                processed++;
+                processNext();
+              };
+              putRequest.onerror = () => reject(putRequest.error);
+            } else {
+              skipped++;
+              processed++;
+              processNext();
+            }
+          } else {
+            const record = { 
+              ...combination, 
+              createdAt: Date.now(),
+              multiplier: combination.multiplier || 1,
+              isPinned: combination.isPinned || false
+            };
+            const addRequest = store.add(record);
+            addRequest.onsuccess = () => {
+              savedCount++;
+              processed++;
+              processNext();
+            };
+            addRequest.onerror = () => reject(addRequest.error);
+          }
+        };
+        getRequest.onerror = () => reject(getRequest.error);
+      };
+
+      processNext();
     });
   },
 
@@ -182,11 +269,29 @@ export const storage = {
     const db = await openDB();
     const transaction = db.transaction(STORE_SELECTION, 'readonly');
     const store = transaction.objectStore(STORE_SELECTION);
+    const index = store.index('idx_createdAt');
+
     return new Promise((resolve, reject) => {
-      const request = store.getAll();
+      // Use index to get results already sorted by createdAt descending
+      const request = index.getAll();
       request.onsuccess = () => {
         const results = request.result as LotteryRecord[];
-        resolve(results.sort((a, b) => b.createdAt - a.createdAt));
+        // index.getAll() returns ascending by default if no range is specified.
+        // For descending, we can use a cursor, or just reverse the result if it's not too large.
+        // Actually IDBIndex.getAll() doesn't support direction.
+        // Let's use openCursor for real sorting.
+        const sortedResults: LotteryRecord[] = [];
+        const cursorRequest = index.openCursor(null, 'prev'); // 'prev' means descending
+        cursorRequest.onsuccess = (event) => {
+          const cursor = (event.target as IDBRequest<IDBCursorWithValue>).result;
+          if (cursor) {
+            sortedResults.push(cursor.value);
+            cursor.continue();
+          } else {
+            resolve(sortedResults);
+          }
+        };
+        cursorRequest.onerror = () => reject(cursorRequest.error);
       };
       request.onerror = () => reject(request.error);
     });
@@ -224,11 +329,25 @@ export const storage = {
   },
 
   async removeFromSelectionByContent(type: string, reds: string, blues: string) {
-    const items = await this.getSelection();
-    const item = items.find(i => i.type === type && i.reds === reds && i.blues === blues);
-    if (item && item.id !== undefined) {
-      return this.removeFromSelection(item.id);
-    }
+    const db = await openDB();
+    const transaction = db.transaction(STORE_SELECTION, 'readwrite');
+    const store = transaction.objectStore(STORE_SELECTION);
+    const index = store.index('idx_content');
+
+    return new Promise<void>((resolve, reject) => {
+      const getRequest = index.get([type, reds, blues]);
+      getRequest.onsuccess = () => {
+        const item = getRequest.result as LotteryRecord;
+        if (item && item.id !== undefined) {
+          const deleteRequest = store.delete(item.id);
+          deleteRequest.onsuccess = () => resolve();
+          deleteRequest.onerror = () => reject(deleteRequest.error);
+        } else {
+          resolve();
+        }
+      };
+      getRequest.onerror = () => reject(getRequest.error);
+    });
   },
 
   async clearSelection() {

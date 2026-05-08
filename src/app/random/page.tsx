@@ -129,18 +129,16 @@ export default function RandomPage() {
 
   const handleAddToSelectionAll = async (e: React.MouseEvent) => {
     triggerFlyToCart(e, 'bg-orange-500');
-    let saved = 0;
-    let skipped = 0;
-    for (const r of results) {
-      const result = await storage.addToSelection({
-        type,
-        reds: r.reds.map(n => n.toString().padStart(2, '0')).join(','),
-        blues: r.blues.map(n => n.toString().padStart(2, '0')).join(','),
-        toolUsed: 'RANDOM'
-      });
-      if (result) saved++;
-      else skipped++;
-    }
+    
+    const batch = results.map(r => ({
+      type,
+      reds: r.reds.map(n => n.toString().padStart(2, '0')).join(','),
+      blues: r.blues.map(n => n.toString().padStart(2, '0')).join(','),
+      toolUsed: 'RANDOM' as const
+    }));
+
+    const { saved, skipped } = await storage.addBatchToSelection(batch);
+    
     window.dispatchEvent(new Event('selection-updated'));
     if (saved > 0) {
       toast.show(`成功加入 ${saved} 注选号${skipped > 0 ? ` (跳过 ${skipped} 注重复)` : ''}`, 'success');
