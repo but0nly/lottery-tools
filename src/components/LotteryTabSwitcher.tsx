@@ -16,11 +16,11 @@ export function LotteryTabSwitcher({ activeTab, onTabChange, counts, variant = '
   
   return (
     <div className={`grid grid-cols-2 p-1 bg-slate-100 rounded-2xl border border-slate-200 relative ${
-      isCompact ? 'w-full max-w-[180px]' : 'w-full md:w-auto md:min-w-[280px]'
+      isCompact ? 'w-full max-w-[180px]' : 'w-full'
     }`}>
       <button 
         onClick={() => onTabChange('SSQ')}
-        className={`relative z-10 flex items-center justify-center gap-2 rounded-xl font-bold transition-all duration-300 ${
+        className={`relative z-10 flex items-center justify-center gap-2 rounded-xl font-bold transition-all duration-300 whitespace-nowrap ${
           isCompact ? 'px-2 py-1.5 text-[10px]' : 'px-4 py-2 md:py-2.5 text-xs md:text-sm'
         } ${
           activeTab === 'SSQ' 
@@ -34,7 +34,7 @@ export function LotteryTabSwitcher({ activeTab, onTabChange, counts, variant = '
       </button>
       <button 
         onClick={() => onTabChange('DLT')}
-        className={`relative z-10 flex items-center justify-center gap-2 rounded-xl font-bold transition-all duration-300 ${
+        className={`relative z-10 flex items-center justify-center gap-2 rounded-xl font-bold transition-all duration-300 whitespace-nowrap ${
           isCompact ? 'px-2 py-1.5 text-[10px]' : 'px-4 py-2 md:py-2.5 text-xs md:text-sm'
         } ${
           activeTab === 'DLT' 
