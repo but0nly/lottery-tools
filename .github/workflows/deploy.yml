@@ -15,14 +15,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          
-      - name: Install pnpm
-        uses: pnpm/action-setup@v3
-        with:
-          version: 9
+          cache: 'pnpm'
           
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
         
       - name: Build
         run: pnpm run build
@@ -38,6 +34,7 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
+            set -e
             # 这里的路径替换为你服务器上项目的实际路径
             cd apps/lottery-tools/
             
