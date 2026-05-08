@@ -6,8 +6,11 @@ WORKDIR /app
 # Enable pnpm via corepack
 RUN corepack enable pnpm
 
-# Copy package.json, pnpm-lock.yaml and .npmrc (for registry mirror and build script permissions)
+# Copy package.json, pnpm-lock.yaml and .npmrc
 COPY package.json pnpm-lock.yaml .npmrc ./
+
+# Allow specific build scripts for pnpm v11 in CI/Docker
+ENV PNPM_ONLY_BUILT_DEPENDENCIES=sharp,unrs-resolver
 
 # Install dependencies using pnpm
 RUN pnpm install
