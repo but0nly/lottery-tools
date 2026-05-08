@@ -3,17 +3,14 @@
 FROM m.daocloud.io/docker.io/library/node:22-alpine AS builder
 WORKDIR /app
 
-# Enable pnpm via corepack
-RUN corepack enable pnpm
+# Install pnpm v9
+RUN npm install -g pnpm@9.15.4
 
-# Copy package.json, pnpm-lock.yaml and .npmrc
-COPY package.json pnpm-lock.yaml .npmrc ./
-
-# Allow specific build scripts for pnpm v11 in CI/Docker
-ENV PNPM_ONLY_BUILT_DEPENDENCIES=sharp,unrs-resolver
+# Copy package.json, pnpm-lock.yaml
+COPY package.json pnpm-lock.yaml ./
 
 # Install dependencies using pnpm
-RUN pnpm install
+RUN pnpm install --frozen-lockfile
 
 COPY . .
 
@@ -24,8 +21,8 @@ RUN pnpm run build
 FROM m.daocloud.io/docker.io/library/node:22-alpine AS runner
 WORKDIR /app
 
-# Enable pnpm via corepack
-RUN corepack enable pnpm
+# Install pnpm v9
+RUN npm install -g pnpm@9.15.4
 
 ENV NODE_ENV=production
 

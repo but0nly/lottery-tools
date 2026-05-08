@@ -11,27 +11,21 @@
   "dependencies": {
     "canvas-confetti": "^1.9.4",
     "framer-motion": "^12.38.0",
-    "lucide-react": "^1.8.0",
-    "next": "^16.2.3",
-    "react": "^19.2.4",
-    "react-dom": "^19.2.4"
+    "lucide-react": "^1.14.0",
+    "next": "16.2.5",
+    "react": "19.2.6",
+    "react-dom": "19.2.6"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4.2.2",
+    "@tailwindcss/postcss": "4.2.4",
     "@types/canvas-confetti": "^1.9.0",
     "@types/node": "20.19.39",
     "@types/react": "19.2.14",
-    "@types/react-dom": "^19",
-    "eslint": "^9",
+    "@types/react-dom": "19.2.3",
+    "eslint": "9.39.4",
     "eslint-config-next": "16.2.3",
-    "tailwindcss": "^4.2.2",
+    "tailwindcss": "4.2.4",
     "typescript": "5.9.3"
   },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "sharp",
-      "unrs-resolver"
-    ]
-  },
-  "packageManager": "pnpm@11.0.8+sha512.4c4097e1dd2d42372c4e7fa5a791ff28fc75a484c7ac192e64b1df0fdef17594ba982f9b4fed9adfb3c757846f565b799b2763fb3733d1de1bcb82cf46684912"
+  "packageManager": "pnpm@9.15.4+sha512.b2dc20e2fc72b3e18848459b37359a32064663e5627a51e4c74b2c29dd8e8e0491483c3abb40789cfd578bf362fb6ba8261b05f0387d76792ed6e23ea3b1b6a0"
 }
