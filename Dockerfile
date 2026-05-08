@@ -1,6 +1,6 @@
 # Stage 1: Build
 # 使用国内镜像源加速基础镜像拉取 (例如腾讯云或公共镜像站)
-FROM m.daocloud.io/docker.io/library/node:20-alpine AS builder
+FROM m.daocloud.io/docker.io/library/node:22-alpine AS builder
 WORKDIR /app
 
 # Enable pnpm via corepack
@@ -18,7 +18,7 @@ COPY . .
 RUN pnpm run build
 
 # Stage 2: Run
-FROM m.daocloud.io/docker.io/library/node:20-alpine AS runner
+FROM m.daocloud.io/docker.io/library/node:22-alpine AS runner
 WORKDIR /app
 
 # Enable pnpm via corepack
