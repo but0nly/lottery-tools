@@ -30,7 +30,7 @@ export function LotteryProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    loadSettings();
+    queueMicrotask(() => { void loadSettings(); });
   }, [loadSettings]);
 
   const setActiveType = useCallback(async (type: LotteryType) => {

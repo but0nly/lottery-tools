@@ -12,7 +12,6 @@ interface TumblingBallProps {
 
 export function TumblingBall({ finalNumber, color, delay, isFixed, max }: TumblingBallProps) {
   const [displayNumber, setDisplayNumber] = useState<number | null>(null);
-  const [isDone, setIsDone] = useState(false);
 
   useEffect(() => {
     // If it's a fixed number (danma), we might want it to stay static or animate briefly.
@@ -20,18 +19,19 @@ export function TumblingBall({ finalNumber, color, delay, isFixed, max }: Tumbli
     // For now, let's just use the provided delay.
     
     const startTime = Date.now();
+    let lastNumber: number | null = null;
     const interval = setInterval(() => {
       const elapsed = Date.now() - startTime;
       if (elapsed >= delay) {
         setDisplayNumber(finalNumber);
-        setIsDone(true);
         clearInterval(interval);
       } else {
         // Generate a random number within the range for the "tumbling" effect
         let nextRandom;
         do {
           nextRandom = Math.floor(Math.random() * max) + 1;
-        } while (nextRandom === displayNumber);
+        } while (nextRandom === lastNumber);
+        lastNumber = nextRandom;
         setDisplayNumber(nextRandom);
       }
     }, 50); // Fast tumbling every 50ms

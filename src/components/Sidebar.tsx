@@ -69,7 +69,7 @@ export function DesktopSidebar() {
   }, [activeType]);
 
   useEffect(() => {
-    loadCount();
+    queueMicrotask(() => { void loadCount(); });
     window.addEventListener('selection-updated', loadCount);
     window.addEventListener('cart-updated', loadCount);
     window.addEventListener('lottery-type-changed', loadCount);
@@ -163,7 +163,7 @@ export function MobileNav() {
   }, [activeType]);
 
   useEffect(() => {
-    loadCount();
+    queueMicrotask(() => { void loadCount(); });
     window.addEventListener('selection-updated', loadCount);
     window.addEventListener('cart-updated', loadCount);
     window.addEventListener('lottery-type-changed', loadCount);
