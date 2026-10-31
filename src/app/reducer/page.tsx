@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { BallPicker } from '@/components/BallPicker';
-import { generateCombinations, LotteryType, FilterConditions, WheelingMode, filterCombination } from '@/lib/combinations';
+import { generateCombinations, LotteryType, FilterConditions, WheelingMode, filterCombination, getCoverage, getWheelingModes } from '@/lib/combinations';
 import { storage, ReducerSettings, SavedCombination } from '@/lib/storage';
 import { toast } from '@/lib/notification';
 import { CheckCircle2, AlertTriangle, Loader2, Plus, Shuffle, HelpCircle, Info, Calculator, Trash2 } from 'lucide-react';
@@ -21,6 +21,8 @@ export default function ReducerPage() {
   const [reds, setReds] = useState<number[]>([]);
   const [blues, setBlues] = useState<number[]>([]);
   const [results, setResults] = useState<{reds: number[], blues: number[]}[]>([]);
+  const [coverage, setCoverage] = useState<ReturnType<typeof getCoverage> | null>(null);
+  const inputRevision = useRef(0);
   const [isGenerating, setIsGenerating] = useState(false);
   const [showWheelingTip, setShowWheelingTip] = useState(false);
   const [showFilterTip, setShowFilterTip] = useState(false);
@@ -39,7 +41,7 @@ export default function ReducerPage() {
     setInSelectionKeys(new Set(selection.map(i => `${i.type}|${i.reds}|${i.blues}`)));
 
     if (settings && settings.type === type) {
-      if (settings.wheelingMode) setWheelingMode(settings.wheelingMode);
+      setWheelingMode(getWheelingModes(type).some(mode => mode.id === settings.wheelingMode) ? settings.wheelingMode : 'FULL');
       if (settings.reds) setReds(settings.reds);
       if (settings.blues) setBlues(settings.blues);
       if (settings.conditions) setConditions(settings.conditions);
@@ -51,7 +53,7 @@ export default function ReducerPage() {
 
   // Reset a previous import when the active lottery changes.
   // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { setImportIds(new Set()); setDiscarded([]); setImportResultCount(null); setResults([]); }, [type]);
+  useEffect(() => { setImportIds(new Set()); setDiscarded([]); setImportResultCount(null); setResults([]); setCoverage(null); setWheelingMode('FULL'); }, [type]);
 
   useEffect(() => {
     loadExistingStates();
@@ -76,6 +78,8 @@ export default function ReducerPage() {
       conditions
     });
   }, [type, wheelingMode, reds, blues, conditions, isInitialized]);
+
+  useEffect(() => { inputRevision.current++; }, [type, importMode, wheelingMode, reds, blues, conditions]);
 
   const handleGenerate = () => {
     if (importMode) {
@@ -105,9 +109,11 @@ export default function ReducerPage() {
     }
 
     setIsGenerating(true);
+    const revision = inputRevision.current;
 
     // Use setTimeout to allow UI to show loader
     setTimeout(() => {
+      if (revision !== inputRevision.current) { setIsGenerating(false); return; }
       // Clean up conditions
       const cleanedConditions: FilterConditions = {};
       if (conditions.minSum && conditions.minSum > 0) cleanedConditions.minSum = conditions.minSum;
@@ -123,7 +129,8 @@ export default function ReducerPage() {
           wheelingMode
         );
         setResults(generated);
-        toast.show(`已成功生成 ${generated.length} 注缩水方案`, 'success');
+        setCoverage(getCoverage(type, reds, wheelingMode, generated));
+        toast.show(generated.length ? `已生成 ${generated.length} 注缩水方案` : '没有符合条件的号码', generated.length ? 'success' : 'warning');
       } catch (e) {
         console.error(e);
         toast.show("计算过程中出错，请尝试减少号码数量。", 'error');
@@ -176,12 +183,14 @@ export default function ReducerPage() {
     setReds(randomReds.sort((a, b) => a - b));
     setBlues(randomBlues.sort((a, b) => a - b));
     setResults([]);
+    setCoverage(null);
   };
 
   const handleClear = () => {
     setImportIds(new Set()); setDiscarded([]); setImportResultCount(null);
     setReds([]);
     setBlues([]);
+    setCoverage(null);
     setResults([]);
     setConditions({
       minSum: undefined,
@@ -210,7 +219,7 @@ export default function ReducerPage() {
       <div className="grid lg:grid-cols-2 gap-6 md:gap-8 min-w-0">
         <div className="space-y-6 min-w-0">
           <div className="flex w-full p-1.5 rounded-2xl bg-slate-100/50 border border-slate-200/50">
-            {([false, true] as const).map(value => <button key={String(value)} onClick={() => { setImportMode(value); setResults([]); setDiscarded([]); setImportResultCount(null); }} className={`flex-1 min-h-11 rounded-xl text-sm font-black transition-all ${importMode === value ? 'bg-white text-emerald-600 shadow-md ring-1 ring-slate-200' : 'text-slate-500'}`}>{value ? '从选号单导入' : '手动号码池'}</button>)}
+            {([false, true] as const).map(value => <button key={String(value)} onClick={() => { setImportMode(value); setResults([]); setCoverage(null); setDiscarded([]); setImportResultCount(null); }} className={`flex-1 min-h-11 rounded-xl text-sm font-black transition-all ${importMode === value ? 'bg-white text-emerald-600 shadow-md ring-1 ring-slate-200' : 'text-slate-500'}`}>{value ? '从选号单导入' : '手动号码池'}</button>)}
           </div>
           {importMode ? <div className="bg-white/70 backdrop-blur-xl p-4 sm:p-6 rounded-[32px] shadow-xl shadow-slate-200/50 border border-white">
             <div className="flex items-center justify-between gap-3 mb-2">
@@ -246,7 +255,7 @@ export default function ReducerPage() {
             <BallPicker 
               max={type === 'SSQ' ? 33 : 35} 
               selected={reds} 
-              onChange={setReds} 
+              onChange={value => { setReds(value); setResults([]); setCoverage(null); }} 
               color="red" 
             />
           </div>
@@ -259,7 +268,7 @@ export default function ReducerPage() {
             <BallPicker 
               max={type === 'SSQ' ? 16 : 12} 
               selected={blues} 
-              onChange={setBlues} 
+              onChange={value => { setBlues(value); setResults([]); setCoverage(null); }} 
               color="blue" 
             />
           </div>
@@ -296,19 +305,15 @@ export default function ReducerPage() {
             {showWheelingTip && (
               <div className="text-[11px] md:text-xs text-emerald-800 mb-6 bg-emerald-50/80 p-4 rounded-2xl border border-emerald-100 flex items-start gap-2 animate-in fade-in slide-in-from-top-2 duration-300 leading-relaxed shadow-inner">
                 <Info className="w-4 h-4 mt-0.5 flex-shrink-0 text-emerald-500" />
-                基于旋转矩阵算法，在选出的号码池中通过抽稀组合注数来降低成本。例如「中6保5」指若选号包含开奖号，则必有1注中5红。
+                覆盖的前提是所选号码池包含指定数量的开奖号码；仅计算双色球红球或大乐透前区，不涉及蓝球或后区。不保证奖级、奖金或最少注数。过滤可能破坏覆盖，请以生成后的覆盖结果为准。
               </div>
             )}
             <div className="grid grid-cols-2 gap-3">
-              {[
-                { id: 'FULL', name: '全复式', desc: '生成所有组合' },
-                { id: 'M6G5', name: '中6保5', desc: '6中时必有1注中5' },
-                { id: 'M6G4', name: '中6保4', desc: '6中时必有1注中4' },
-                { id: 'M5G5', name: '中5保5', desc: '5中时必有1注中5' },
-              ].map((mode) => (
+              {getWheelingModes(type).map((mode) => (
                 <button
                   key={mode.id}
-                  onClick={() => setWheelingMode(mode.id as WheelingMode)}
+                  onClick={() => { setWheelingMode(mode.id); setResults([]); setCoverage(null); }}
+                  aria-pressed={wheelingMode === mode.id}
                   className={`group relative p-4 rounded-2xl border-2 text-left transition-all ${
                     wheelingMode === mode.id
                       ? 'border-emerald-500 bg-emerald-50 shadow-md shadow-emerald-100/50'
@@ -354,7 +359,7 @@ export default function ReducerPage() {
                 <input 
                   type="number" 
                   value={conditions.minSum || ''} 
-                  onChange={e => { setConditions({...conditions, minSum: parseInt(e.target.value)}); setImportResultCount(null); setDiscarded([]); if (importMode) setResults([]); }}
+                  onChange={e => { setConditions({...conditions, minSum: parseInt(e.target.value)}); setImportResultCount(null); setDiscarded([]); setResults([]); setCoverage(null); }}
                   className="w-full bg-slate-50/50 border-2 border-slate-100 rounded-xl px-4 py-3 text-sm font-bold focus:border-emerald-500 focus:bg-white outline-none transition-all shadow-inner"
                   placeholder="例: 80"
                 />
@@ -364,7 +369,7 @@ export default function ReducerPage() {
                 <input 
                   type="number" 
                   value={conditions.maxSum || ''} 
-                  onChange={e => { setConditions({...conditions, maxSum: parseInt(e.target.value)}); setImportResultCount(null); setDiscarded([]); if (importMode) setResults([]); }}
+                  onChange={e => { setConditions({...conditions, maxSum: parseInt(e.target.value)}); setImportResultCount(null); setDiscarded([]); setResults([]); setCoverage(null); }}
                   className="w-full bg-slate-50/50 border-2 border-slate-100 rounded-xl px-4 py-3 text-sm font-bold focus:border-emerald-500 focus:bg-white outline-none transition-all shadow-inner"
                   placeholder="例: 130"
                 />
@@ -374,7 +379,7 @@ export default function ReducerPage() {
                 <input 
                   type="number" 
                   value={conditions.maxConsecutive || ''} 
-                  onChange={e => { setConditions({...conditions, maxConsecutive: parseInt(e.target.value)}); setImportResultCount(null); setDiscarded([]); if (importMode) setResults([]); }}
+                  onChange={e => { setConditions({...conditions, maxConsecutive: parseInt(e.target.value)}); setImportResultCount(null); setDiscarded([]); setResults([]); setCoverage(null); }}
                   placeholder="例如 3 表示最多允许3连号"
                   className="w-full bg-slate-50/50 border-2 border-slate-100 rounded-xl px-4 py-3 text-sm font-bold focus:border-emerald-500 focus:bg-white outline-none transition-all shadow-inner"
                 />
@@ -420,6 +425,13 @@ export default function ReducerPage() {
             )}
           </div>
 
+          {!importMode && coverage && (
+            <div role="status" className={`mb-4 rounded-2xl border p-4 text-sm leading-relaxed ${coverage.total > 0 && coverage.covered === coverage.total && results.length > 0 ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
+              <p className="font-black">{coverage.total > 0 && coverage.covered === coverage.total && results.length > 0 ? '覆盖完整' : results.length === 0 ? '无结果，无法保证覆盖' : '覆盖不完整，原目标未得到保证'}</p>
+              <p className="mt-1">所选号码池包含 {coverage.matches} 个开奖号码时，最终结果至少一注命中 {coverage.guarantee} 个{type === 'SSQ' ? '红球' : '前区号码'}：已覆盖 {coverage.covered} / {coverage.total} 种情况。</p>
+              <p className="mt-1">仅计算{type === 'SSQ' ? '红球' : '前区'}，不保证奖级、奖金或最少注数。</p>
+            </div>
+          )}
           {importMode && importResultCount !== null && (
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-slate-50/70 p-4">
               <p className="text-sm font-bold text-slate-500">
@@ -445,7 +457,7 @@ export default function ReducerPage() {
                 </div>
                 <div className="text-center">
                   <p className="font-black text-slate-400 uppercase tracking-widest text-sm mb-2">Awaiting Analysis</p>
-                  <p className="text-sm text-slate-500 font-medium">{importMode && importResultCount !== null ? '没有符合条件的号码' : '在左侧选择号码并设置条件后点击生成'}</p>
+                  <p className="text-sm text-slate-500 font-medium">{(importMode && importResultCount !== null) || coverage ? '没有符合条件的号码' : '在左侧选择号码并设置条件后点击生成'}</p>
                 </div>
               </div>
             ) : (
