@@ -1,3 +1,5 @@
+import { CALIBRATION_DATA } from './calibrated-weights.ts';
+
 export function combine<T>(arr: T[], k: number): T[][] {
   if (k === 0) return [[]];
   if (arr.length === 0) return [];
@@ -387,14 +389,7 @@ export interface GameTheoryConfig {
 }
 
 export const DEFAULT_GAME_THEORY_CONFIG: GameTheoryConfig = {
-  monthPenalty: 0.4,
-  birthdayPenalty: 0.3,
-  luckyPenalty: 0.2,
-  largeNumberBonus: 0.4,
-  blueMonthPenalty: 0.3,
-  blueLargeBonus: 0.2,
-  patternPenalty: 0.5,
-  allBirthdayPenalty: 0.5,
+  ...CALIBRATION_DATA.calibratedConfig,
 };
 
 export interface CombinationCrowdingDiagnostic {

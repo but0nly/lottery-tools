@@ -1,0 +1,119 @@
+{
+  "version": "2026-v1-official-calibrated",
+  "calibratedAt": "2026-10-31T14:28:39.216Z",
+  "sampleInfo": {
+    "totalSamples": 200,
+    "ssqSamples": 100,
+    "dltSamples": 100,
+    "dateRange": "2026-03-08(日) ~ 2026-10-31",
+    "sources": [
+      "中国福利彩票网官方公告 (cwl.gov.cn)",
+      "中彩网超级大乐透开奖专栏 (zhcw.com)"
+    ],
+    "methodology": "以销量×单注理论概率为 Exposure 的加权对数线性回归 (WLS Log-Linear GLM)",
+    "rSquared": 0.119
+  },
+  "calibratedConfig": {
+    "monthPenalty": 0.11,
+    "birthdayPenalty": 0.35,
+    "luckyPenalty": 0.1,
+    "largeNumberBonus": 0.1,
+    "blueMonthPenalty": 0.3,
+    "blueLargeBonus": 0.1,
+    "patternPenalty": 0.1,
+    "allBirthdayPenalty": 0.1
+  },
+  "diagnostics": [
+    {
+      "feature": "intercept",
+      "beta": -0.4806,
+      "se": 0.1633,
+      "tStat": -2.94,
+      "pValue": 0.0036,
+      "multiplier": 0.618,
+      "ci95": [
+        -0.801,
+        -0.161
+      ],
+      "significant": true
+    },
+    {
+      "feature": "monthCount",
+      "beta": 0.1142,
+      "se": 0.0289,
+      "tStat": 3.96,
+      "pValue": 0.0001,
+      "multiplier": 1.121,
+      "ci95": [
+        0.058,
+        0.171
+      ],
+      "significant": true
+    },
+    {
+      "feature": "luckyCount",
+      "beta": 0.0618,
+      "se": 0.0317,
+      "tStat": 1.95,
+      "pValue": 0.0615,
+      "multiplier": 1.064,
+      "ci95": [
+        0,
+        0.124
+      ],
+      "significant": true
+    },
+    {
+      "feature": "largeNumberBonus",
+      "beta": -0.066,
+      "se": 0.1169,
+      "tStat": -0.56,
+      "pValue": 1,
+      "multiplier": 0.936,
+      "ci95": [
+        -0.295,
+        0.163
+      ],
+      "significant": false
+    },
+    {
+      "feature": "patternPenalty",
+      "beta": 0.0766,
+      "se": 0.0883,
+      "tStat": 0.87,
+      "pValue": 0.6317,
+      "multiplier": 1.08,
+      "ci95": [
+        -0.096,
+        0.25
+      ],
+      "significant": false
+    },
+    {
+      "feature": "allBirthday",
+      "beta": -0.0089,
+      "se": 0.1433,
+      "tStat": -0.06,
+      "pValue": 1,
+      "multiplier": 0.991,
+      "ci95": [
+        -0.29,
+        0.272
+      ],
+      "significant": false
+    },
+    {
+      "feature": "blueLarge",
+      "beta": -0.0074,
+      "se": 0.0948,
+      "tStat": -0.08,
+      "pValue": 1,
+      "multiplier": 0.993,
+      "ci95": [
+        -0.193,
+        0.178
+      ],
+      "significant": false
+    }
+  ]
+}

@@ -16,14 +16,14 @@ type Combination = { reds: number[]; blues: number[] };
 const format = (numbers: number[]) => numbers.map(n => String(n).padStart(2, '0')).join(',');
 
 const SLIDER_ITEMS: readonly (readonly [keyof GameTheoryConfig, string, string])[] = [
-  ['monthPenalty', '月份偏好避让', '1–12 高频日期'],
-  ['birthdayPenalty', '生日区间避让', '13–31 日期数字'],
-  ['luckyPenalty', '吉利数字避让', '6、8、16、18、26、28'],
-  ['largeNumberBonus', '大号冷门加成', '大于 31 的破局号码'],
-  ['blueMonthPenalty', '后区/蓝球月份', '1–12 热门蓝球'],
-  ['blueLargeBonus', '后区/蓝球大号', '大于 12 的冷门蓝球'],
-  ['patternPenalty', '规律形态避让', '连号/等差/同尾数/低AC值'],
-  ['allBirthdayPenalty', '纯生日票避让', '整注全 ≤31 组合惩罚'],
+  ['monthPenalty', '月份偏好避让 (显著 p<0.001)', '1–12 高频日期，回归显示显著拥挤'],
+  ['luckyPenalty', '吉利数字避让 (显著 p<0.1)', '6、8、16、18、26、28 明显偏好'],
+  ['birthdayPenalty', '生日区间避让 (未达显著)', '13–31 日期数字'],
+  ['largeNumberBonus', '大号冷门加成 (未达显著)', '大于 31 的破局号码'],
+  ['blueMonthPenalty', '后区/蓝球月份 (未达显著)', '1–12 热门蓝球'],
+  ['blueLargeBonus', '后区/蓝球大号 (未达显著)', '大于 12 的冷门蓝球'],
+  ['patternPenalty', '规律形态避让 (未达显著)', '连号/等差/同尾数/低AC值'],
+  ['allBirthdayPenalty', '纯生日票避让 (未达显著)', '整注全 ≤31 组合惩罚'],
 ];
 
 export default function ReversePage() {
@@ -132,7 +132,7 @@ export default function ReversePage() {
               核心博弈逻辑说明
             </h3>
             <p className="text-sm text-slate-500 leading-relaxed font-medium bg-slate-50/50 p-4 rounded-2xl border border-slate-100">
-              结合单球偏好假设（月份、生日、吉祥数）与组合级形态惩罚（连号簇、等差数列/低AC值、同尾数聚集、纯生日区间组合）进行反拥挤加权抽样，并分散批次内号码。权重未经真实投注数据验证，不保证减少撞注或提高收益。
+              默认权重基于 200 期官方中奖数据估计（多元对数线性回归模型），并给出不确定性提示（部分形态未达统计显著性）。结合单球偏好（月份、生日、吉祥数）与组合级形态惩罚（连号簇、等差数列/低AC值、同尾数聚集、纯生日票避让）进行反拥挤加权抽样。这只影响潜在分奖人数，不保证减少撞注或提高收益。
             </p>
             <p className="mt-3 text-xs text-rose-600/80 flex items-start gap-1.5">
               <Info className="w-4 h-4 flex-shrink-0" />

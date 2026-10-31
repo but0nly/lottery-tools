@@ -68,7 +68,7 @@ export default function Home() {
           </div>
           <h2 className="text-2xl font-bold text-slate-900 mb-3 tracking-tight">反向冷门分析</h2>
           <p className="text-slate-600 mb-6 leading-relaxed">
-            依据大众选号偏好假设（日期、吉利数）与组合规律形态（连号、等差、同尾数、纯生日票）生成号码，权重未经真实投注数据验证。
+            依据大众选号偏好（日期、吉利数）与组合规律形态（连号、等差、同尾数、纯生日票），默认权重基于 200 期官方中奖数据估计，并给出不确定性提示。
           </p>
           <ul className="space-y-3 mb-8 text-sm text-slate-500 flex-1">
             <li className="flex items-center gap-2.5"><CheckCircle2 className="w-4 h-4 text-rose-500"/> 单球偏好与组合规律形态双重规避</li>

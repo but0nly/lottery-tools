@@ -27,7 +27,7 @@ const { evaluateCombinationCrowding, generateReverseBatch, DEFAULT_GAME_THEORY_C
 
 test('home explains anti-crowding assumptions without promising a better outcome', () => {
   const html = renderToStaticMarkup(React.createElement(Home));
-  assert.match(html, /未经真实投注数据验证/);
+  assert.match(html, /基于.*官方中奖数据估计/);
   assert.match(html, /不保证减少撞注或提高收益/);
   assert.match(html, /分奖影响与开奖概率是两回事/);
   assert.doesNotMatch(html, /提升独揽大奖概率/);
@@ -36,7 +36,7 @@ test('home explains anti-crowding assumptions without promising a better outcome
 test('reverse analysis explains probability and prize sharing alongside combo-level parameters', () => {
   const html = renderToStaticMarkup(React.createElement(LotteryProvider, null, React.createElement(Reverse)));
   assert.match(html, /公平、独立开奖/);
-  assert.match(html, /未经真实投注数据验证/);
+  assert.match(html, /基于.*官方中奖数据估计/);
   assert.match(html, /不保证减少撞注或提高收益/);
   assert.match(html, /规律形态避让/);
   assert.match(html, /纯生日票避让/);
