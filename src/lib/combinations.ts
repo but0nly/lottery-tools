@@ -332,3 +332,50 @@ export function generateRandomWithFixed(
 
   return results;
 }
+
+/** Weighted sampling without replacement; a small usage penalty spreads a batch. */
+export function generateReverseBatch(
+  type: LotteryType, count: number, config: GameTheoryConfig,
+  history?: { reds: string; blues: string }[]
+): { reds: number[]; blues: number[] }[] {
+  const maxRed = type === 'SSQ' ? 33 : 35;
+  const maxBlue = type === 'SSQ' ? 16 : 12;
+  const redUsage = new Map<number, number>(), blueUsage = new Map<number, number>();
+  const frequencies = (key: 'reds' | 'blues', max: number) => {
+    const counts = Array(max + 1).fill(0) as number[];
+    history?.forEach(draw => draw[key].split(',').forEach(value => { counts[Number(value)]++; }));
+    return counts;
+  };
+  const redFreq = frequencies('reds', maxRed), blueFreq = frequencies('blues', maxBlue);
+  const pick = (max: number, amount: number, usage: Map<number, number>, blue: boolean) => {
+    const frequency = blue ? blueFreq : redFreq;
+    const maxFreq = Math.max(1, ...frequency);
+    const choices = Array.from({ length: max }, (_, i) => i + 1);
+    const picked: number[] = [];
+    while (picked.length < amount) {
+      const weights = choices.map(n => {
+        let score: number;
+        if (history) score = 2 * frequency[n] / maxFreq;
+        else if (blue) score = (n <= 12 ? config.blueMonthPenalty : -config.blueLargeBonus) + ([6, 8].includes(n) ? 0.1 : 0);
+        else score = (n <= 12 ? config.monthPenalty : n <= 31 ? config.birthdayPenalty : -config.largeNumberBonus) + ([6, 8, 16, 18, 26, 28].includes(n) ? config.luckyPenalty : 0);
+        return Math.exp(-2 * score) / (1 + 0.05 * (usage.get(n) || 0));
+      });
+      let threshold = Math.random() * weights.reduce((a, b) => a + b, 0);
+      let index = weights.findIndex(w => (threshold -= w) <= 0);
+      if (index < 0) index = choices.length - 1;
+      picked.push(choices.splice(index, 1)[0]);
+    }
+    return picked.sort((a, b) => a - b);
+  };
+  const results: { reds: number[]; blues: number[] }[] = [], seen = new Set<string>();
+  for (let attempts = 0; results.length < count && attempts < count * 100; attempts++) {
+    const reds = pick(maxRed, type === 'SSQ' ? 6 : 5, redUsage, false);
+    const blues = pick(maxBlue, type === 'SSQ' ? 1 : 2, blueUsage, true);
+    const key = `${reds}|${blues}`;
+    if (seen.has(key)) continue;
+    seen.add(key); results.push({ reds, blues });
+    reds.forEach(n => redUsage.set(n, (redUsage.get(n) || 0) + 1));
+    blues.forEach(n => blueUsage.set(n, (blueUsage.get(n) || 0) + 1));
+  }
+  return results;
+}

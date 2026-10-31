@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { toast } from '@/lib/notification';
 import { 
   Trash2, Plus, Minus, 
-  Copy, Check, Star, X, LayoutGrid,
+  Copy, Check, Star, X, LayoutGrid, Image as ImageIcon, Download,
   Calculator, RefreshCcw
 } from 'lucide-react';
 import Link from 'next/link';
@@ -13,6 +13,16 @@ import { LotteryType } from '@/lib/combinations';
 import { useLotteryContext } from '@/app/LotteryContext';
 import { motion, AnimatePresence, useMotionValue, useTransform, PanInfo } from 'framer-motion';
 import confetti from 'canvas-confetti';
+
+const celebrateCopy = () => {
+  confetti({
+    particleCount: 150,
+    spread: 70,
+    origin: { y: 0.8 },
+    zIndex: 90,
+    colors: ['#f59e0b', '#10b981', '#3b82f6', '#ef4444', '#8b5cf6']
+  });
+};
 
 const SwipeableItem = ({ 
   record, 
@@ -178,6 +188,13 @@ export default function SavedPage() {
   const [loading, setLoading] = useState(true);
   const { activeType: activeTab } = useLotteryContext();
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [image, setImage] = useState<{url: string; key: string} | null>(null);
+  const imageKey = JSON.stringify(records.filter(r => r.type === activeTab && selectedIds.has(r.id!)).map(r => [r.id, r.reds, r.blues, r.multiplier]));
+  useEffect(() => () => { if (image) URL.revokeObjectURL(image.url); }, [image]);
+
+  // A selection belongs to one lottery only.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { setSelectedIds(new Set()); }, [activeTab]);
 
   const loadRecords = async (silent = false) => {
     if (!silent) setLoading(true);
@@ -263,10 +280,12 @@ export default function SavedPage() {
       return;
     }
 
-    const text = selectedRecords.map(r => {
-      const label = r.type === 'SSQ' ? '双色球' : '大乐透';
-      const multiplierText = (r.multiplier || 1) > 1 ? ` ✖️ ${r.multiplier}` : '';
-      return `${label}: 红球 ${r.reds} + 蓝球 ${r.blues}${multiplierText}`;
+    const label = activeTab === 'SSQ' ? '双色球' : '大乐透';
+    const text = `【${label}】\n` + selectedRecords.map(r => {
+      const first = r.type === 'SSQ' ? '红球' : '前区';
+      const second = r.type === 'SSQ' ? '蓝球' : '后区';
+      const multiplier = (r.multiplier || 1) > 1 ? `（${r.multiplier}倍）` : '';
+      return `${first} ${r.reds.split(',').join(' + ')} ${second} ${r.blues.split(',').join(' + ')};${multiplier}`;
     }).join('\n');
 
     try {
@@ -290,16 +309,45 @@ export default function SavedPage() {
       
       toast.show('已复制到剪贴板，祝您中大奖！ 🎉', 'success');
       
-      // Celebratory animation
-      confetti({
-        particleCount: 150,
-        spread: 70,
-        origin: { y: 0.8 },
-        colors: ['#f59e0b', '#10b981', '#3b82f6', '#ef4444', '#8b5cf6']
-      });
+      celebrateCopy();
     } catch {
       toast.show('复制失败，请重试', 'error');
     }
+  };
+
+  const handleCopyImage = async () => {
+    const selected = records.filter(r => r.type === activeTab && selectedIds.has(r.id!));
+    if (!selected.length) return;
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = 760;
+      canvas.height = 100 + selected.length * 72;
+      const ctx = canvas.getContext('2d');
+      if (!ctx || canvas.height > 32767 || canvas.width * canvas.height > 268435456) throw new Error('图片过长，设备无法生成完整图片');
+      ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#0f172a'; ctx.font = 'bold 28px sans-serif';
+      ctx.fillText(`【${activeTab === 'SSQ' ? '双色球' : '大乐透'}】`, 30, 40);
+      ctx.font = '16px sans-serif'; ctx.fillStyle = '#64748b'; ctx.fillText(activeTab === 'SSQ' ? '红球' : '前区', 50, 70); ctx.fillText(activeTab === 'SSQ' ? '蓝球' : '后区', 410, 70);
+      selected.forEach((r, index) => {
+        const y = 100 + index * 72;
+        ctx.font = '16px sans-serif'; ctx.fillStyle = '#64748b'; ctx.fillText(String(index + 1), 15, y + 6);
+        const drawBalls = (values: string[], x: number, color: string) => values.forEach((value, i) => {
+          const cx = x + i * 55; ctx.beginPath(); ctx.arc(cx, y, 21, 0, Math.PI * 2); ctx.fillStyle = color; ctx.fill();
+          ctx.fillStyle = '#ffffff'; ctx.font = 'bold 17px sans-serif'; ctx.textAlign = 'center'; ctx.fillText(value, cx, y + 6); ctx.textAlign = 'start';
+        });
+        drawBalls(r.reds.split(','), 70, '#ef4444');
+        drawBalls(r.blues.split(','), 430, '#3b82f6');
+        if ((r.multiplier || 1) > 1) { ctx.fillStyle = '#334155'; ctx.font = '18px sans-serif'; ctx.fillText(`${r.multiplier}倍`, 580, y + 6); }
+      });
+      const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob(b => b ? resolve(b) : reject(new Error('图片生成失败')), 'image/png'));
+      const url = URL.createObjectURL(blob); setImage({ url, key: imageKey });
+      try {
+        if (!navigator.clipboard?.write || typeof ClipboardItem === 'undefined') throw new Error('不支持复制图片');
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+        toast.show('图片已复制', 'success');
+        celebrateCopy();
+      } catch { toast.show('无法复制图片，请使用下载图片', 'warning'); }
+    } catch (error) { toast.show(error instanceof Error ? error.message : '图片生成失败', 'error'); }
   };
 
   const handleDeleteSelected = async () => {
@@ -492,9 +540,9 @@ export default function SavedPage() {
               initial={{ y: 100, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: 100, opacity: 0 }}
-              className="bg-slate-900/90 backdrop-blur-xl border border-white/10 px-4 md:px-6 py-4 rounded-[32px] shadow-2xl flex items-center gap-3 md:gap-4 max-w-2xl w-full"
+              className="bg-slate-900/90 backdrop-blur-xl border border-white/10 px-4 md:px-6 py-3 md:py-4 rounded-[28px] shadow-2xl flex flex-wrap items-center gap-2 md:gap-4 max-w-2xl w-full"
             >
-              <div className="flex-1 min-w-0">
+              <div className="w-full sm:w-auto sm:flex-1 min-w-0 flex items-center justify-between sm:block">
                 <div className="flex items-center gap-2">
                   <p className="text-white font-black text-base md:text-lg leading-tight">已选 {selectedIds.size} 注</p>
                   <div className="h-4 w-px bg-white/20" />
@@ -505,7 +553,7 @@ export default function SavedPage() {
                 </p>
               </div>
               
-              <div className="flex items-center gap-1.5 md:gap-2">
+              <div className="flex items-center gap-2 w-full sm:w-auto">
                 <button 
                   onClick={handleDeleteSelected}
                   className="p-3 bg-rose-500/20 hover:bg-rose-500 text-rose-500 hover:text-white rounded-2xl transition-all"
@@ -515,12 +563,13 @@ export default function SavedPage() {
                 </button>
                 <button 
                   onClick={handleCopySelected}
-                  className="bg-emerald-500 hover:bg-emerald-600 text-white font-black px-4 md:px-6 py-3 rounded-2xl shadow-lg shadow-emerald-500/20 flex items-center gap-2 transition-all active:scale-95"
+                  className="flex-1 sm:flex-none justify-center bg-emerald-500 hover:bg-emerald-600 text-white font-black px-3 md:px-5 py-3 rounded-2xl shadow-lg shadow-emerald-500/20 flex items-center gap-1.5 transition-all active:scale-95 text-xs sm:text-sm"
                 >
                   <Copy className="w-4 h-4" />
-                  <span className="hidden sm:inline">复制选号</span>
-                  <span className="sm:hidden text-xs">复制</span>
+                  <span>复制文字</span>
                 </button>
+                <button onClick={handleCopyImage} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-blue-500 hover:bg-blue-600 text-white font-black px-3 py-3 rounded-2xl shadow-lg shadow-blue-500/20 text-xs sm:text-sm active:scale-95 transition-all"><ImageIcon className="w-4 h-4" />复制图片</button>
+                {image && image.key === imageKey && <a href={image.url} download="选号单.png" aria-label="下载图片" className="p-3 rounded-2xl bg-white/10 text-white"><Download className="w-5 h-5" /></a>}
                 <button 
                   onClick={() => setSelectedIds(new Set())}
                   className="p-2 text-slate-400 hover:text-white transition-colors"

@@ -2,8 +2,8 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { BallPicker } from '@/components/BallPicker';
-import { generateCombinations, LotteryType, FilterConditions, WheelingMode } from '@/lib/combinations';
-import { storage, ReducerSettings } from '@/lib/storage';
+import { generateCombinations, LotteryType, FilterConditions, WheelingMode, filterCombination } from '@/lib/combinations';
+import { storage, ReducerSettings, SavedCombination } from '@/lib/storage';
 import { toast } from '@/lib/notification';
 import { CheckCircle2, AlertTriangle, Loader2, Plus, Shuffle, HelpCircle, Info, Calculator, Trash2 } from 'lucide-react';
 import { useLotteryContext } from '@/app/LotteryContext';
@@ -12,6 +12,11 @@ import { triggerFlyToCart } from '@/components/FlyToCartAnimation';
 
 export default function ReducerPage() {
   const { activeType: type } = useLotteryContext();
+  const [importMode, setImportMode] = useState(false);
+  const [available, setAvailable] = useState<SavedCombination[]>([]);
+  const [importIds, setImportIds] = useState<Set<number>>(new Set());
+  const [discarded, setDiscarded] = useState<SavedCombination[]>([]);
+  const [importResultCount, setImportResultCount] = useState<number | null>(null);
   const [wheelingMode, setWheelingMode] = useState<WheelingMode>('FULL');
   const [reds, setReds] = useState<number[]>([]);
   const [blues, setBlues] = useState<number[]>([]);
@@ -30,6 +35,7 @@ export default function ReducerPage() {
       storage.getSettings<ReducerSettings>('reducer_params')
     ]);
 
+    setAvailable(selection.filter(item => item.type === type));
     setInSelectionKeys(new Set(selection.map(i => `${i.type}|${i.reds}|${i.blues}`)));
 
     if (settings && settings.type === type) {
@@ -42,6 +48,10 @@ export default function ReducerPage() {
     }
     setIsInitialized(true);
   }, [type]);
+
+  // Reset a previous import when the active lottery changes.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { setImportIds(new Set()); setDiscarded([]); setImportResultCount(null); setResults([]); }, [type]);
 
   useEffect(() => {
     loadExistingStates();
@@ -68,6 +78,20 @@ export default function ReducerPage() {
   }, [type, wheelingMode, reds, blues, conditions, isInitialized]);
 
   const handleGenerate = () => {
+    if (importMode) {
+      const selected = available.filter(r => importIds.has(r.id!));
+      if (!selected.length) { toast.show('请先选择要导入的号码', 'warning'); return; }
+      const cleaned: FilterConditions = {};
+      if (conditions.minSum && conditions.minSum > 0) cleaned.minSum = conditions.minSum;
+      if (conditions.maxSum && conditions.maxSum > 0) cleaned.maxSum = conditions.maxSum;
+      if (conditions.maxConsecutive && conditions.maxConsecutive > 0) cleaned.maxConsecutive = conditions.maxConsecutive;
+      const keep = selected.filter(r => filterCombination(r.reds.split(',').map(Number).sort((a,b) => a-b), cleaned));
+      setDiscarded(selected.filter(r => !keep.includes(r)));
+      setImportResultCount(selected.length);
+      setResults(keep.map(r => ({ reds: r.reds.split(',').map(Number), blues: r.blues.split(',').map(Number) })));
+      if (!Object.keys(cleaned).length) toast.show('未设置筛选条件，已保留全部号码', 'info');
+      return;
+    }
     const minRed = type === 'SSQ' ? 6 : 5;
     const minBlue = type === 'SSQ' ? 1 : 2;
     if (reds.length < minRed || blues.length < minBlue) {
@@ -155,6 +179,7 @@ export default function ReducerPage() {
   };
 
   const handleClear = () => {
+    setImportIds(new Set()); setDiscarded([]); setImportResultCount(null);
     setReds([]);
     setBlues([]);
     setResults([]);
@@ -184,6 +209,28 @@ export default function ReducerPage() {
 
       <div className="grid lg:grid-cols-2 gap-6 md:gap-8 min-w-0">
         <div className="space-y-6 min-w-0">
+          <div className="flex w-full p-1.5 rounded-2xl bg-slate-100/50 border border-slate-200/50">
+            {([false, true] as const).map(value => <button key={String(value)} onClick={() => { setImportMode(value); setResults([]); setDiscarded([]); setImportResultCount(null); }} className={`flex-1 min-h-11 rounded-xl text-sm font-black transition-all ${importMode === value ? 'bg-white text-emerald-600 shadow-md ring-1 ring-slate-200' : 'text-slate-500'}`}>{value ? '从选号单导入' : '手动号码池'}</button>)}
+          </div>
+          {importMode ? <div className="bg-white/70 backdrop-blur-xl p-4 sm:p-6 rounded-[32px] shadow-xl shadow-slate-200/50 border border-white">
+            <div className="flex items-center justify-between gap-3 mb-2">
+              <h3 className="text-lg font-bold flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />选择已有号码</h3>
+              <button disabled={!available.length} onClick={() => { setImportIds(importIds.size === available.length ? new Set() : new Set(available.map(r => r.id!))); setImportResultCount(null); setDiscarded([]); setResults([]); }} className="min-h-11 px-3 rounded-xl text-xs font-black text-emerald-600 bg-emerald-50 disabled:opacity-40">{available.length > 0 && importIds.size === available.length ? '取消全选' : '全选'}</button>
+            </div>
+            <p className="text-xs text-slate-400 font-medium mb-4">轻点号码选择 · 已选 {importIds.size} / {available.length} 注</p>
+            {available.length === 0 ? <div className="rounded-2xl bg-slate-50/70 py-10 text-center text-sm text-slate-400 font-bold">当前彩种的选号单还是空的</div> :
+              <div className="max-h-[360px] overflow-y-auto space-y-2 pr-1">{available.map((r, index) => {
+                const selected = importIds.has(r.id!);
+                return <button key={r.id} type="button" aria-pressed={selected} aria-label={`第${index + 1}注 ${r.reds} 加 ${r.blues}`} onClick={() => { setImportIds(prev => { const next = new Set(prev); if (next.has(r.id!)) next.delete(r.id!); else next.add(r.id!); return next; }); setImportResultCount(null); setDiscarded([]); setResults([]); }} className={`w-full flex items-center gap-2 p-3 min-h-14 rounded-2xl border-2 transition-all active:scale-[0.99] ${selected ? 'border-emerald-400 bg-emerald-50/70 shadow-sm' : 'border-transparent bg-slate-50/70'}`}>
+                  <span className={`w-5 h-5 flex-shrink-0 rounded-full flex items-center justify-center ${selected ? 'text-emerald-500' : 'text-slate-300'}`}><CheckCircle2 className="w-5 h-5" /></span>
+                  <span className="flex gap-1 sm:gap-1.5 items-center min-w-0 overflow-x-auto no-scrollbar">
+                    {r.reds.split(',').map(n => <span key={`r${n}`} className="w-7 h-7 rounded-full bg-red-500 text-white flex-shrink-0 flex items-center justify-center text-[10px] font-black shadow-sm">{n}</span>)}
+                    <span className="w-px h-5 bg-slate-200 mx-0.5 flex-shrink-0" />
+                    {r.blues.split(',').map(n => <span key={`b${n}`} className="w-7 h-7 rounded-full bg-blue-500 text-white flex-shrink-0 flex items-center justify-center text-[10px] font-black shadow-sm">{n}</span>)}
+                  </span>
+                </button>;
+              })}</div>}
+          </div> : <>
           <div className="bg-white/70 backdrop-blur-xl p-6 rounded-[32px] shadow-xl shadow-slate-200/50 border border-white">
             <h3 className="text-lg font-bold mb-6 flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -282,6 +329,7 @@ export default function ReducerPage() {
             </div>
           </div>
 
+          </>}
           <div className="bg-white/70 backdrop-blur-xl p-6 rounded-[32px] shadow-xl shadow-slate-200/50 border border-white">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-lg font-bold flex items-center gap-2">
@@ -297,7 +345,7 @@ export default function ReducerPage() {
             {showFilterTip && (
               <div className="text-[11px] md:text-xs text-emerald-800 mb-6 bg-emerald-50/80 p-4 rounded-2xl border border-emerald-100 flex items-start gap-2 animate-in fade-in slide-in-from-top-2 duration-300 leading-relaxed shadow-inner">
                 <Info className="w-4 h-4 mt-0.5 flex-shrink-0 text-emerald-500" />
-                和值指选出的红球之和；连号指连续数字。设置这些区间可剔除掉小概率出现的非典型组合方案。
+                和值指选出的红球之和；连号指连续数字。设置条件可按号码特征筛选组合，不代表其中奖概率更高。
               </div>
             )}
             <div className="grid grid-cols-2 gap-5">
@@ -306,7 +354,7 @@ export default function ReducerPage() {
                 <input 
                   type="number" 
                   value={conditions.minSum || ''} 
-                  onChange={e => setConditions({...conditions, minSum: parseInt(e.target.value)})}
+                  onChange={e => { setConditions({...conditions, minSum: parseInt(e.target.value)}); setImportResultCount(null); setDiscarded([]); if (importMode) setResults([]); }}
                   className="w-full bg-slate-50/50 border-2 border-slate-100 rounded-xl px-4 py-3 text-sm font-bold focus:border-emerald-500 focus:bg-white outline-none transition-all shadow-inner"
                   placeholder="例: 80"
                 />
@@ -316,7 +364,7 @@ export default function ReducerPage() {
                 <input 
                   type="number" 
                   value={conditions.maxSum || ''} 
-                  onChange={e => setConditions({...conditions, maxSum: parseInt(e.target.value)})}
+                  onChange={e => { setConditions({...conditions, maxSum: parseInt(e.target.value)}); setImportResultCount(null); setDiscarded([]); if (importMode) setResults([]); }}
                   className="w-full bg-slate-50/50 border-2 border-slate-100 rounded-xl px-4 py-3 text-sm font-bold focus:border-emerald-500 focus:bg-white outline-none transition-all shadow-inner"
                   placeholder="例: 130"
                 />
@@ -326,7 +374,7 @@ export default function ReducerPage() {
                 <input 
                   type="number" 
                   value={conditions.maxConsecutive || ''} 
-                  onChange={e => setConditions({...conditions, maxConsecutive: parseInt(e.target.value)})}
+                  onChange={e => { setConditions({...conditions, maxConsecutive: parseInt(e.target.value)}); setImportResultCount(null); setDiscarded([]); if (importMode) setResults([]); }}
                   placeholder="例如 3 表示最多允许3连号"
                   className="w-full bg-slate-50/50 border-2 border-slate-100 rounded-xl px-4 py-3 text-sm font-bold focus:border-emerald-500 focus:bg-white outline-none transition-all shadow-inner"
                 />
@@ -347,7 +395,7 @@ export default function ReducerPage() {
             ) : (
               <>
                 <Calculator className="w-6 h-6" />
-                立即缩水生成方案
+                {importMode ? '筛选已导入号码' : '立即缩水生成方案'}
               </>
             )}
           </button>
@@ -359,7 +407,7 @@ export default function ReducerPage() {
               生成结果 
               <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100">{results.length} 注</span>
             </h3>
-            {results.length > 0 && (
+            {!importMode && results.length > 0 && (
               <div className="flex gap-2">
                 <button 
                   onClick={(e) => handleAddToSelectionAll(e)}
@@ -372,6 +420,23 @@ export default function ReducerPage() {
             )}
           </div>
 
+          {importMode && importResultCount !== null && (
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-slate-50/70 p-4">
+              <p className="text-sm font-bold text-slate-500">
+                导入 {importResultCount} 注，保留 {results.length} 注，剔除 {discarded.length} 注
+              </p>
+              {discarded.length > 0 && (
+                <button
+                  type="button"
+                  className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-rose-50 px-4 py-3 text-sm font-black text-rose-600 transition-all hover:bg-rose-100 active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500"
+                  onClick={() => toast.confirm({ title: '删除筛掉的注数', message: `确定从选号单删除筛掉的 ${discarded.length} 注吗？其中 ${discarded.filter(r => r.isPinned).length} 注已收藏。`, onConfirm: async () => { for (const record of discarded) await storage.removeFromSelection(record.id!); setImportIds(prev => { const next = new Set(prev); discarded.forEach(r => next.delete(r.id!)); return next; }); setDiscarded([]); window.dispatchEvent(new Event('selection-updated')); toast.show('已删除筛掉的号码', 'success'); } })}
+                >
+                  <Trash2 className="h-4 w-4" />
+                  删除筛掉的注数
+                </button>
+              )}
+            </div>
+          )}
           <div className="flex-1 overflow-y-auto pr-2 space-y-4 custom-scrollbar overscroll-behavior-none">
             {results.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-slate-400 space-y-6">
@@ -380,7 +445,7 @@ export default function ReducerPage() {
                 </div>
                 <div className="text-center">
                   <p className="font-black text-slate-400 uppercase tracking-widest text-sm mb-2">Awaiting Analysis</p>
-                  <p className="text-sm text-slate-500 font-medium">在左侧选择号码并设置条件后点击生成</p>
+                  <p className="text-sm text-slate-500 font-medium">{importMode && importResultCount !== null ? '没有符合条件的号码' : '在左侧选择号码并设置条件后点击生成'}</p>
                 </div>
               </div>
             ) : (
@@ -420,7 +485,7 @@ export default function ReducerPage() {
 
                     {/* 第二行：操作按钮 */}
                     <div className="flex items-center justify-end gap-2">
-                      <button 
+                      {!importMode && <button
                         onClick={async (e) => {
                           if (isInSelection) {
                             await storage.removeFromSelectionByContent(type, redsStr, bluesStr);
@@ -444,7 +509,7 @@ export default function ReducerPage() {
                       >
                         {isInSelection ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
                         {isInSelection ? '已加入' : '加入选号单'}
-                      </button>
+                      </button>}
                     </div>
                   </div>
                 );
