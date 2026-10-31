@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState, useCallback, useEffect } from 'react';
-import { Home, Calculator, History, Bookmark, Dices } from 'lucide-react';
+import { Home, Calculator, History, Bookmark, Dices, Scale } from 'lucide-react';
 import { storage } from '@/lib/storage';
 import { useLotteryContext } from '@/app/LotteryContext';
 import { LotteryTabSwitcher } from './LotteryTabSwitcher';
@@ -13,6 +13,7 @@ const navItems = [
   { href: '/reducer', label: '缩水', icon: Calculator, activeColor: 'text-emerald-500' },
   { href: '/random', label: '随机', icon: Dices, activeColor: 'text-orange-500', special: true },
   { href: '/reverse', label: '反向', icon: History, activeColor: 'text-rose-500' },
+  { href: '/ev', label: '期望', icon: Scale, activeColor: 'text-sky-500' },
   { href: '/selection', label: '选号', icon: Bookmark, activeColor: 'text-blue-500' },
 ];
 
@@ -22,6 +23,7 @@ const getPageTitle = (pathname: string) => {
          currentItem?.label === '缩水' ? '组合缩水选号' : 
          currentItem?.label === '反向' ? '反向冷门分析' : 
          currentItem?.label === '随机' ? '智能随机选号' : 
+         currentItem?.label === '期望' ? '期望值计算器' : 
          currentItem?.label || '彩通宝';
 };
 
