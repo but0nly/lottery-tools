@@ -15,7 +15,7 @@ Module._resolveFilename = function (request, ...args) {
 };
 for (const extension of ['.ts', '.tsx']) {
   require.extensions[extension] = (module, filename) => {
-    const source = fs.readFileSync(filename, 'utf8');
+    const source = fs.readFileSync(filename, 'utf8').replaceAll('import.meta.url', "require('node:url').pathToFileURL(__filename).href");
     const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } });
     module._compile(compiled.outputText, filename);
   };
