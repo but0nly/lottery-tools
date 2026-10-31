@@ -16,7 +16,38 @@ export function combine<T>(arr: T[], k: number): T[][] {
 // DLT: 5 Front, 2 Back
 
 export type LotteryType = 'SSQ' | 'DLT';
-export type WheelingMode = 'FULL' | 'M6G5' | 'M6G4' | 'M5G5';
+export type WheelingMode = 'FULL' | 'M6G5' | 'M6G4' | 'M5G5' | 'M5G4';
+
+export function getWheelingModes(type: LotteryType): { id: WheelingMode; name: string; desc: string }[] {
+  return type === 'SSQ' ? [
+    { id: 'FULL', name: '全复式', desc: '生成所有组合' },
+    { id: 'M6G5', name: '中6保5', desc: '号码池中6个红球时，至少1注中5个' },
+    { id: 'M6G4', name: '中6保4', desc: '号码池中6个红球时，至少1注中4个' },
+    { id: 'M5G5', name: '中5保5', desc: '号码池中5个红球时，至少1注中5个' },
+  ] : [
+    { id: 'FULL', name: '全复式', desc: '生成所有组合' },
+    { id: 'M5G5', name: '中5保5', desc: '号码池中5个前区号码时，至少1注中5个' },
+    { id: 'M5G4', name: '中5保4', desc: '号码池中5个前区号码时，至少1注中4个' },
+  ];
+}
+
+function modeTargets(type: LotteryType, mode: WheelingMode): { matches: number; guarantee: number } {
+  if (!getWheelingModes(type).some(item => item.id === mode)) throw new Error('Invalid wheeling mode for lottery type');
+  if (mode === 'FULL') return type === 'SSQ' ? { matches: 6, guarantee: 6 } : { matches: 5, guarantee: 5 };
+  if (mode === 'M6G5') return { matches: 6, guarantee: 5 };
+  if (mode === 'M6G4') return { matches: 6, guarantee: 4 };
+  if (mode === 'M5G5') return { matches: 5, guarantee: 5 };
+  return { matches: 5, guarantee: 4 };
+}
+
+/** Coverage of the final tickets, considering only red/front numbers. */
+export function getCoverage(type: LotteryType, pool: number[], mode: WheelingMode, results: { reds: number[]; blues: number[] }[]) {
+  const { matches, guarantee } = modeTargets(type, mode);
+  const outcomes = combine(pool, matches);
+  const tickets = [...new Map(results.map(result => [result.reds.join(','), result.reds])).values()];
+  const covered = outcomes.filter(outcome => tickets.some(ticket => outcome.filter(n => ticket.includes(n)).length >= guarantee)).length;
+  return { matches, guarantee, covered, total: outcomes.length };
+}
 
 export interface FilterConditions {
   minSum?: number;
@@ -145,13 +176,7 @@ export function generateCombinations(
   if (wheelingMode === 'FULL') {
     aCombs = combine(poolA, reqA);
   } else {
-    let m = 6, t = 5;
-    if (wheelingMode === 'M6G5') { m = 6; t = 5; }
-    else if (wheelingMode === 'M6G4') { m = 6; t = 4; }
-    else if (wheelingMode === 'M5G5') { m = 5; t = 5; }
-    
-    // For DLT, if user chooses M6Gx, we cap m at 5 since draw only has 5 front balls
-    if (type === 'DLT' && m > 5) m = 5;
+    const { matches: m, guarantee: t } = modeTargets(type, wheelingMode);
 
     aCombs = generateRotationMatrix(poolA, reqA, m, t);
   }
