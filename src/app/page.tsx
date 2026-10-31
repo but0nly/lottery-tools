@@ -16,7 +16,7 @@ export default function Home() {
           欢迎使用 <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">彩通宝</span>
         </h1>
         <p className="text-xl text-slate-600 max-w-3xl leading-relaxed">
-          专业的双色球和大乐透组合优化、智能随机选号与历史热度分析平台。在这里，你可以缩水降本、定胆随机选号，并寻找独家冷门奖号。
+          双色球和大乐透选号工具：筛选组合、随机选号，或根据偏好假设及历史频次探索号码。
         </p>
       </header>
 
@@ -66,14 +66,14 @@ export default function Home() {
           <div className="w-14 h-14 bg-gradient-to-br from-rose-400 to-pink-500 text-white rounded-2xl flex items-center justify-center mb-8 shadow-lg shadow-rose-200 group-hover:scale-110 transition-transform">
             <History className="w-7 h-7" />
           </div>
-          <h2 className="text-2xl font-bold text-slate-900 mb-3 tracking-tight">历史热度反向计算</h2>
+          <h2 className="text-2xl font-bold text-slate-900 mb-3 tracking-tight">反向冷门分析</h2>
           <p className="text-slate-600 mb-6 leading-relaxed">
-            研究他人心理，根据历史开奖频率反向寻找冷门号码。规避热门陷阱，提升独揽大奖概率。
+            心理避让依据选号偏好假设生成号码，权重未经真实投注数据验证；历史低频依据开奖样本生成号码。
           </p>
           <ul className="space-y-3 mb-8 text-sm text-slate-500 flex-1">
-            <li className="flex items-center gap-2.5"><CheckCircle2 className="w-4 h-4 text-rose-500"/> 基于历史大数据分析</li>
-            <li className="flex items-center gap-2.5"><CheckCircle2 className="w-4 h-4 text-rose-500"/> 智能规避常见规律号</li>
-            <li className="flex items-center gap-2.5"><CheckCircle2 className="w-4 h-4 text-rose-500"/> 寻找独特的冷门绝杀组合</li>
+            <li className="flex items-center gap-2.5"><CheckCircle2 className="w-4 h-4 text-rose-500"/> 历史低频不代表未来更容易开出，也不能反映他人选号偏好</li>
+            <li className="flex items-center gap-2.5"><CheckCircle2 className="w-4 h-4 text-rose-500"/> 偏好假设不保证减少撞注或提高收益</li>
+            <li className="flex items-center gap-2.5"><CheckCircle2 className="w-4 h-4 text-rose-500"/> 可能的分奖影响与开奖概率是两回事</li>
           </ul>
           <Link href="/reverse" className="group/btn inline-flex items-center justify-center gap-2 w-full px-6 py-4 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-2xl transition-all shadow-lg shadow-slate-300 hover:shadow-slate-400">
             反向探索
