@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { BallPicker } from '@/components/BallPicker';
 import { TumblingBall } from '@/components/TumblingBall';
-import { LotteryType, generateRandomWithFixed } from '@/lib/combinations';
+import { getRandomCombinationCapacity, generateRandomWithFixed } from '@/lib/combinations';
 import { storage, RandomSettings } from '@/lib/storage';
 import { toast } from '@/lib/notification';
 import { CheckCircle2, Loader2, Plus, Shuffle, Trash2 } from 'lucide-react';
@@ -20,6 +20,7 @@ export default function RandomPage() {
   const [excludedReds, setExcludedReds] = useState<number[]>([]);
   const [excludedBlues, setExcludedBlues] = useState<number[]>([]);
   const [betCount, setBetCount] = useState<number>(5);
+  const [allowDuplicates, setAllowDuplicates] = useState(false);
   const [results, setResults] = useState<{reds: number[], blues: number[]}[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
@@ -42,6 +43,7 @@ export default function RandomPage() {
       if (settings.excludedReds) setExcludedReds(settings.excludedReds);
       if (settings.excludedBlues) setExcludedBlues(settings.excludedBlues);
       if (settings.betCount) setBetCount(settings.betCount);
+      setAllowDuplicates(settings.allowDuplicates ?? false);
     } else {
       handleClear();
     }
@@ -63,39 +65,24 @@ export default function RandomPage() {
       fixedBlues,
       excludedReds,
       excludedBlues,
-      betCount
+      betCount,
+      allowDuplicates
     });
-  }, [type, fixedReds, fixedBlues, excludedReds, excludedBlues, betCount, isInitialized]);
+  }, [type, fixedReds, fixedBlues, excludedReds, excludedBlues, betCount, allowDuplicates, isInitialized]);
 
   const handleGenerate = () => {
-    const maxFixedRed = type === 'SSQ' ? 5 : 4;
-    const maxFixedBlue = type === 'SSQ' ? 1 : 2;
-    const reqRed = type === 'SSQ' ? 6 : 5;
-    const reqBlue = type === 'SSQ' ? 1 : 2;
-    const totalRed = type === 'SSQ' ? 33 : 35;
-    const totalBlue = type === 'SSQ' ? 16 : 12;
-
-    if (fixedReds.length > maxFixedRed) {
-      toast.show(`红球胆码不能超过 ${maxFixedRed} 个`, 'warning');
+    if (!Number.isInteger(betCount) || betCount < 1 || betCount > 1000) {
+      toast.show("注数请设置为 1 到 1000 之间的整数", 'warning');
       return;
     }
-    if (fixedBlues.length > maxFixedBlue) {
-      toast.show(`蓝球胆码不能超过 ${maxFixedBlue} 个`, 'warning');
-      return;
-    }
-
-    // Validation for excluded numbers
-    if (totalRed - excludedReds.length < reqRed) {
-      toast.show(`排除红球过多，剩余号码不足以组成一注`, 'warning');
-      return;
-    }
-    if (totalBlue - excludedBlues.length < reqBlue) {
-      toast.show(`排除蓝球过多，剩余号码不足以组成一注`, 'warning');
-      return;
-    }
-
-    if (betCount < 1 || betCount > 1000) {
-      toast.show("注数请设置为 1 到 1000 之间", 'warning');
+    try {
+      const capacity = getRandomCombinationCapacity(type, fixedReds, fixedBlues, excludedReds, excludedBlues);
+      if (!allowDuplicates && betCount > capacity) {
+        toast.show(`可用组合仅有 ${capacity} 注，请减少注数或允许重复`, 'warning');
+        return;
+      }
+    } catch (error) {
+      toast.show(error instanceof Error ? error.message : '号码设置无效', 'warning');
       return;
     }
 
@@ -104,7 +91,7 @@ export default function RandomPage() {
     // Slight delay for UX
     setTimeout(() => {
       try {
-        const generated = generateRandomWithFixed(type, fixedReds, fixedBlues, betCount, excludedReds, excludedBlues);
+        const generated = generateRandomWithFixed(type, fixedReds, fixedBlues, betCount, excludedReds, excludedBlues, { allowDuplicates });
         setResults(generated);
         setAnimationKey(prev => prev + 1);
         toast.show(`已随机生成 ${betCount} 注号码`, 'success');
@@ -146,6 +133,14 @@ export default function RandomPage() {
       toast.show(`选中的方案均已在选号单中`, 'info');
     }
   };
+
+  let capacity: number | undefined;
+  let capacityError = '';
+  try {
+    capacity = getRandomCombinationCapacity(type, fixedReds, fixedBlues, excludedReds, excludedBlues);
+  } catch (error) {
+    capacityError = error instanceof Error ? error.message : '号码设置无效';
+  }
 
   return (
     <div className="relative min-h-full p-4 md:p-8 max-w-7xl mx-auto pb-32 md:pb-8 overflow-hidden">
@@ -247,6 +242,25 @@ export default function RandomPage() {
               />
               <span className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-400 font-bold">注</span>
             </div>
+          </div>
+
+          <div className="bg-white/70 backdrop-blur-xl p-6 rounded-[32px] shadow-xl shadow-slate-200/50 border border-white">
+            <h3 className="text-lg font-bold mb-3">批次重复</h3>
+            <div className="grid grid-cols-2 gap-2" role="group" aria-label="批次重复设置">
+              {[false, true].map(value => (
+                <button key={String(value)} type="button" aria-pressed={allowDuplicates === value}
+                  onClick={() => setAllowDuplicates(value)}
+                  className={`py-3 rounded-xl border-2 font-bold transition-all focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-500 ${allowDuplicates === value ? 'border-orange-500 bg-orange-50 text-orange-700' : 'border-slate-100 bg-slate-50 text-slate-600'}`}>
+                  {value ? '允许重复' : '禁止重复'}
+                </button>
+              ))}
+            </div>
+            <p className="mt-3 text-sm text-slate-500">重复购买同一注不会提高至少中一注头奖的概率。</p>
+            {capacity !== undefined ? (
+              <p className="mt-2 text-sm font-bold text-orange-700" aria-live="polite">可用组合：{capacity.toLocaleString()} 注{!allowDuplicates && betCount > capacity ? '，当前注数超过可用组合' : ''}</p>
+            ) : (
+              <p className="mt-2 text-sm font-bold text-rose-600" aria-live="polite">{capacityError}</p>
+            )}
           </div>
 
           <button 

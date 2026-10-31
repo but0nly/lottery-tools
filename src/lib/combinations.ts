@@ -296,41 +296,83 @@ export function generateGameTheoryCombination(
   };
 }
 
-/**
- * Generate random combinations with fixed numbers (Dan Ma) and excluded numbers (Sha Hao)
- */
+/** Constraints shared by capacity calculation and random generation. */
+function randomPools(type: LotteryType, fixedReds: number[], fixedBlues: number[], excludedReds: number[], excludedBlues: number[]) {
+  if (type !== 'SSQ' && type !== 'DLT') throw new Error('未知彩票类型');
+  const prepare = (fixed: number[], excluded: number[], max: number, required: number) => {
+    for (const values of [fixed, excluded]) {
+      if (new Set(values).size !== values.length || values.some(n => !Number.isInteger(n) || n < 1 || n > max)) {
+        throw new Error('号码必须在范围内且不能重复');
+      }
+    }
+    if (fixed.some(n => excluded.includes(n))) throw new Error('胆码与杀号冲突');
+    if (fixed.length > required) throw new Error('胆码数量过多');
+    const pool = Array.from({ length: max }, (_, i) => i + 1).filter(n => !fixed.includes(n) && !excluded.includes(n));
+    const needed = required - fixed.length;
+    if (pool.length < needed) throw new Error('剩余号码不足以组成一注');
+    return { fixed, pool, needed };
+  };
+  return {
+    red: prepare(fixedReds, excludedReds, type === 'SSQ' ? 33 : 35, type === 'SSQ' ? 6 : 5),
+    blue: prepare(fixedBlues, excludedBlues, type === 'SSQ' ? 16 : 12, type === 'SSQ' ? 1 : 2),
+  };
+}
+
+function choose(n: number, k: number): number {
+  let result = 1;
+  for (let i = 1; i <= k; i++) result = result * (n - i + 1) / i;
+  return Math.round(result);
+}
+
+export function getRandomCombinationCapacity(type: LotteryType, fixedReds: number[], fixedBlues: number[], excludedReds: number[] = [], excludedBlues: number[] = []): number {
+  const { red, blue } = randomPools(type, fixedReds, fixedBlues, excludedReds, excludedBlues);
+  return choose(red.pool.length, red.needed) * choose(blue.pool.length, blue.needed);
+}
+
+/** Uniform sampling over valid tickets, with optional sampling without replacement. */
 export function generateRandomWithFixed(
-  type: LotteryType,
-  fixedReds: number[],
-  fixedBlues: number[],
-  count: number = 1,
-  excludedReds: number[] = [],
-  excludedBlues: number[] = []
+  type: LotteryType, fixedReds: number[], fixedBlues: number[], count: number = 1,
+  excludedReds: number[] = [], excludedBlues: number[] = [],
+  options: { allowDuplicates?: boolean; random?: () => number } = {}
 ): { reds: number[]; blues: number[] }[] {
-  const maxRed = type === 'SSQ' ? 33 : 35;
-  const maxBlue = type === 'SSQ' ? 16 : 12;
-  const reqRed = type === 'SSQ' ? 6 : 5;
-  const reqBlue = type === 'SSQ' ? 1 : 2;
-
-  const results: { reds: number[]; blues: number[] }[] = [];
-  
-  // Available pool: exclude both fixed (already picked) and excluded (don't want to pick)
-  const allReds = Array.from({ length: maxRed }, (_, i) => i + 1)
-    .filter(n => !fixedReds.includes(n) && !excludedReds.includes(n));
-  const allBlues = Array.from({ length: maxBlue }, (_, i) => i + 1)
-    .filter(n => !fixedBlues.includes(n) && !excludedBlues.includes(n));
-
-  for (let i = 0; i < count; i++) {
-    const randomReds = [...allReds].sort(() => Math.random() - 0.5).slice(0, reqRed - fixedReds.length);
-    const randomBlues = [...allBlues].sort(() => Math.random() - 0.5).slice(0, reqBlue - fixedBlues.length);
-
-    results.push({
-      reds: [...fixedReds, ...randomReds].sort((a, b) => a - b),
-      blues: [...fixedBlues, ...randomBlues].sort((a, b) => a - b)
-    });
-  }
-
-  return results;
+  if (!Number.isSafeInteger(count) || count < 1) throw new Error('注数必须为正整数');
+  const { red, blue } = randomPools(type, fixedReds, fixedBlues, excludedReds, excludedBlues);
+  const blueCount = choose(blue.pool.length, blue.needed);
+  const capacity = choose(red.pool.length, red.needed) * blueCount;
+  if (options.allowDuplicates === false && count > capacity) throw new Error(`可用组合仅有 ${capacity} 注`);
+  const random = options.random ?? Math.random;
+  const draw = (limit: number) => {
+    const value = random();
+    if (!Number.isFinite(value) || value < 0 || value >= 1) throw new Error('随机源必须返回 [0, 1) 内的数');
+    return Math.floor(value * limit);
+  };
+  const unrank = (pool: number[], needed: number, rank: number) => {
+    const result: number[] = [];
+    let start = 0;
+    for (let left = needed; left > 0; left--) {
+      for (let i = start; i <= pool.length - left; i++) {
+        const size = choose(pool.length - i - 1, left - 1);
+        if (rank < size) { result.push(pool[i]); start = i + 1; break; }
+        rank -= size;
+      }
+    }
+    return result;
+  };
+  // Partial Fisher–Yates over ranks, stored sparsely to avoid enumerating the space.
+  const swaps = new Map<number, number>();
+  return Array.from({ length: count }, (_, i) => {
+    let rank: number;
+    if (options.allowDuplicates === false) {
+      const remaining = capacity - i;
+      const index = draw(remaining);
+      rank = swaps.get(index) ?? index;
+      swaps.set(index, swaps.get(remaining - 1) ?? remaining - 1);
+    } else rank = draw(capacity);
+    return {
+      reds: [...red.fixed, ...unrank(red.pool, red.needed, Math.floor(rank / blueCount))].sort((a, b) => a - b),
+      blues: [...blue.fixed, ...unrank(blue.pool, blue.needed, rank % blueCount)].sort((a, b) => a - b),
+    };
+  });
 }
 
 /** Weighted sampling without replacement; a small usage penalty spreads a batch. */
