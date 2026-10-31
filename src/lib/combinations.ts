@@ -123,7 +123,8 @@ export function generateRotationMatrix(
   pool: number[],
   k: number,
   m: number,
-  t: number
+  t: number,
+  onProgress?: (fraction: number) => void
 ): number[][] {
   const universe = combine(pool, k); // All possible tickets
   const draws = combine(pool, m); // All possible draw outcomes to cover
@@ -174,6 +175,7 @@ export function generateRotationMatrix(
     for (const d of bestTicketNewCoveredSet) {
       coveredDraws.add(d);
     }
+    onProgress?.(coveredDraws.size / draws.length);
   }
 
   return selected;
@@ -184,7 +186,8 @@ export function generateCombinations(
   poolA: number[],
   poolB: number[],
   conditions?: FilterConditions,
-  wheelingMode: WheelingMode = 'FULL'
+  wheelingMode: WheelingMode = 'FULL',
+  onProgress?: (fraction: number) => void
 ): { reds: number[]; blues: number[] }[] {
   const estimate = getCombinationEstimate(type, poolA.length, poolB.length, wheelingMode);
   if (!estimate.allowed) throw new Error(estimate.reason!);
@@ -196,10 +199,11 @@ export function generateCombinations(
 
   if (wheelingMode === 'FULL') {
     aCombs = combine(poolA, reqA);
+    onProgress?.(1);
   } else {
     const { matches: m, guarantee: t } = modeTargets(type, wheelingMode);
 
-    aCombs = generateRotationMatrix(poolA, reqA, m, t);
+    aCombs = generateRotationMatrix(poolA, reqA, m, t, onProgress);
   }
 
   const bCombs = combine(poolB, reqB);

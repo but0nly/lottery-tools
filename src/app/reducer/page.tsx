@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef, useLayoutEffect } from 'react';
 import { BallPicker } from '@/components/BallPicker';
-import { generateCombinations, LotteryType, FilterConditions, WheelingMode, filterCombination, getCoverage, getWheelingModes, getCombinationEstimate } from '@/lib/combinations';
+import { FilterConditions, WheelingMode, filterCombination, getCoverage, getWheelingModes, getCombinationEstimate } from '@/lib/combinations';
 import { storage, ReducerSettings, SavedCombination } from '@/lib/storage';
 import { toast } from '@/lib/notification';
 import { CheckCircle2, Loader2, Plus, Shuffle, HelpCircle, Info, Calculator, Trash2 } from 'lucide-react';
@@ -22,7 +22,8 @@ export default function ReducerPage() {
   const [blues, setBlues] = useState<number[]>([]);
   const [results, setResults] = useState<{reds: number[], blues: number[]}[]>([]);
   const [coverage, setCoverage] = useState<ReturnType<typeof getCoverage> | null>(null);
-  const inputRevision = useRef(0);
+  const workerRef = useRef<Worker | null>(null);
+  const [progress, setProgress] = useState<number | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [showWheelingTip, setShowWheelingTip] = useState(false);
   const [showFilterTip, setShowFilterTip] = useState(false);
@@ -79,7 +80,23 @@ export default function ReducerPage() {
     });
   }, [type, wheelingMode, reds, blues, conditions, isInitialized]);
 
-  useEffect(() => { inputRevision.current++; }, [type, importMode, wheelingMode, reds, blues, conditions]);
+  // Terminate before the browser can deliver a result for changed inputs.
+  useLayoutEffect(() => {
+    if (workerRef.current) {
+      workerRef.current.terminate();
+      workerRef.current = null;
+      setIsGenerating(false);
+      setProgress(null);
+    }
+  }, [type, importMode, wheelingMode, reds, blues, conditions]);
+  useEffect(() => () => { workerRef.current?.terminate(); workerRef.current = null; }, []);
+
+  const cancelGeneration = () => {
+    workerRef.current?.terminate();
+    workerRef.current = null;
+    setIsGenerating(false);
+    setProgress(null);
+  };
 
   const activeMode = getWheelingModes(type).some(mode => mode.id === wheelingMode) ? wheelingMode : 'FULL';
   const estimate = getCombinationEstimate(type, reds.filter(n => n <= (type === 'SSQ' ? 33 : 35)).length, blues.filter(n => n <= (type === 'SSQ' ? 16 : 12)).length, activeMode);
@@ -109,36 +126,43 @@ export default function ReducerPage() {
 
     if (!estimate.allowed) { toast.show(estimate.reason!, 'warning'); return; }
 
+    const cleanedConditions: FilterConditions = {};
+    if (conditions.minSum && conditions.minSum > 0) cleanedConditions.minSum = conditions.minSum;
+    if (conditions.maxSum && conditions.maxSum > 0) cleanedConditions.maxSum = conditions.maxSum;
+    if (conditions.maxConsecutive && conditions.maxConsecutive > 0) cleanedConditions.maxConsecutive = conditions.maxConsecutive;
+
+    setResults([]);
+    setCoverage(null);
     setIsGenerating(true);
-    const revision = inputRevision.current;
-
-    // Use setTimeout to allow UI to show loader
-    setTimeout(() => {
-      if (revision !== inputRevision.current) { setIsGenerating(false); return; }
-      // Clean up conditions
-      const cleanedConditions: FilterConditions = {};
-      if (conditions.minSum && conditions.minSum > 0) cleanedConditions.minSum = conditions.minSum;
-      if (conditions.maxSum && conditions.maxSum > 0) cleanedConditions.maxSum = conditions.maxSum;
-      if (conditions.maxConsecutive && conditions.maxConsecutive > 0) cleanedConditions.maxConsecutive = conditions.maxConsecutive;
-
-      try {
-        const generated = generateCombinations(
-          type, 
-          reds, 
-          blues, 
-          Object.keys(cleanedConditions).length > 0 ? cleanedConditions : undefined,
-          activeMode
-        );
-        setResults(generated);
-        setCoverage(getCoverage(type, reds, activeMode, generated));
-        toast.show(generated.length ? `已生成 ${generated.length} 注缩水方案` : '没有符合条件的号码', generated.length ? 'success' : 'warning');
-      } catch (e) {
-        console.error(e);
-        toast.show("计算过程中出错，请尝试减少号码数量。", 'error');
-      } finally {
-        setIsGenerating(false);
-      }
-    }, 300);
+    setProgress(0);
+    try {
+      const worker = new Worker(new URL('../../lib/reducer.worker.ts', import.meta.url));
+      workerRef.current = worker;
+      const fail = () => {
+        if (workerRef.current !== worker) return;
+        cancelGeneration();
+        toast.show('计算过程中出错，请尝试减少号码数量。', 'error');
+      };
+      worker.onerror = fail;
+      worker.onmessageerror = fail;
+      worker.onmessage = (event) => {
+        if (workerRef.current !== worker) return;
+        const message = event.data;
+        if (message.kind === 'progress') setProgress(message.fraction);
+        else if (message.kind === 'coverage') setProgress(1);
+        else if (message.kind === 'error') fail();
+        else if (message.kind === 'complete') {
+          setResults(message.results);
+          setCoverage(message.coverage);
+          cancelGeneration();
+          toast.show(message.results.length ? `已生成 ${message.results.length} 注缩水方案` : '没有符合条件的号码', message.results.length ? 'success' : 'warning');
+        }
+      };
+      worker.postMessage({ type, reds, blues, conditions: cleanedConditions, mode: activeMode });
+    } catch {
+      cancelGeneration();
+      toast.show('计算过程中出错，请尝试减少号码数量。', 'error');
+    }
   };
 
   const handleAddToSelectionAll = async (e: React.MouseEvent) => {
@@ -390,6 +414,11 @@ export default function ReducerPage() {
             {!estimate.allowed && <p className="mt-2 font-black">{estimate.reason} 为保护计算和页面性能，以全复式上限判断。</p>}
           </div>}
 
+          {isGenerating && <div role="status" aria-live="polite" className="rounded-2xl border border-emerald-100 bg-emerald-50/80 p-4 text-sm text-emerald-800">
+            <p className="font-bold">{progress === 1 ? '正在核对最终覆盖情况…' : `正在覆盖开奖情况：${Math.round((progress ?? 0) * 100)}%`}</p>
+            <progress className="mt-2 w-full accent-emerald-600" max={1} value={progress ?? 0} aria-label="缩水计算进度" />
+            <button type="button" onClick={cancelGeneration} className="mt-3 min-h-11 rounded-xl bg-white px-4 py-2 font-black text-emerald-700 border border-emerald-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500">取消计算</button>
+          </div>}
           <button 
             onClick={handleGenerate}
             disabled={isGenerating}

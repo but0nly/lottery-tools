@@ -62,3 +62,12 @@ test('蓝球池不足时没有注数，也没有覆盖', async () => {
   assert.deepEqual(tickets, []);
   assert.deepEqual(getCoverage('DLT', pool, 'M5G4', tickets), { matches: 5, guarantee: 4, covered: 0, total: 1 });
 });
+
+test('缩水生成报告覆盖进度，并保持原有号码结果', () => {
+  const progress: number[] = [];
+  const pool = [1, 2, 3, 4, 5, 6, 7, 8];
+  const result = generateCombinations('SSQ', pool, [1], undefined, 'M6G5', value => progress.push(value));
+  assert.deepEqual(result, generateCombinations('SSQ', pool, [1], undefined, 'M6G5'));
+  assert.ok(progress.some(value => value > 0 && value < 1));
+  assert.equal(progress.at(-1), 1);
+});
