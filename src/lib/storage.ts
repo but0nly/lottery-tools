@@ -47,6 +47,7 @@ export interface RandomSettings {
   excludedReds?: number[];
   excludedBlues?: number[];
   betCount: number;
+  allowDuplicates?: boolean;
 }
 
 let dbInstance: IDBDatabase | null = null;
