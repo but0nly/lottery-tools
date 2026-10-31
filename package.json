@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --test tests/*.test.ts"
+    "test": "node --test tests/*.test.ts tests/*.test.mjs tests/*.test.cjs"
   },
   "dependencies": {
     "canvas-confetti": "^1.9.4",

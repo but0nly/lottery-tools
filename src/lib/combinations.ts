@@ -49,6 +49,24 @@ export function getCoverage(type: LotteryType, pool: number[], mode: WheelingMod
   return { matches, guarantee, covered, total: outcomes.length };
 }
 
+/** Full ordinary-ticket count before optional reduction or filtering. */
+export function getCombinationEstimate(type: LotteryType, countA: number, countB: number, mode: WheelingMode) {
+  if (type !== 'SSQ' && type !== 'DLT') throw new Error('未知彩票类型');
+  const { matches } = modeTargets(type, mode);
+  const reqA = type === 'SSQ' ? 6 : 5;
+  const reqB = type === 'SSQ' ? 1 : 2;
+  if (!Number.isInteger(countA) || countA < 0 || countA > (type === 'SSQ' ? 33 : 35) ||
+      !Number.isInteger(countB) || countB < 0 || countB > (type === 'SSQ' ? 16 : 12)) throw new Error('号码池数量无效');
+  const candidates = countA < reqA ? 0 : choose(countA, reqA);
+  const outcomes = countA < matches ? 0 : choose(countA, matches);
+  const fullCount = candidates * (countB < reqB ? 0 : choose(countB, reqB));
+  // The greedy algorithm can scan all candidates for every selected ticket and draw.
+  const work = mode === 'FULL' ? candidates * outcomes : candidates * candidates * outcomes;
+  const reason = fullCount && work > 2_000_000 ? '计算规模过大，请减少红球或前区号码。' :
+    fullCount > 500 ? '输出上限为 500 注，请减少号码池。' : null;
+  return { fullCount, fullCost: fullCount * 2, allowed: reason === null, reason };
+}
+
 export interface FilterConditions {
   minSum?: number;
   maxSum?: number;
@@ -168,6 +186,9 @@ export function generateCombinations(
   conditions?: FilterConditions,
   wheelingMode: WheelingMode = 'FULL'
 ): { reds: number[]; blues: number[] }[] {
+  const estimate = getCombinationEstimate(type, poolA.length, poolB.length, wheelingMode);
+  if (!estimate.allowed) throw new Error(estimate.reason!);
+  if (estimate.fullCount === 0) return [];
   const reqA = type === 'SSQ' ? 6 : 5;
   const reqB = type === 'SSQ' ? 1 : 2;
 

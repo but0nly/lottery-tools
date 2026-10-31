@@ -2,10 +2,10 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { BallPicker } from '@/components/BallPicker';
-import { generateCombinations, LotteryType, FilterConditions, WheelingMode, filterCombination, getCoverage, getWheelingModes } from '@/lib/combinations';
+import { generateCombinations, LotteryType, FilterConditions, WheelingMode, filterCombination, getCoverage, getWheelingModes, getCombinationEstimate } from '@/lib/combinations';
 import { storage, ReducerSettings, SavedCombination } from '@/lib/storage';
 import { toast } from '@/lib/notification';
-import { CheckCircle2, AlertTriangle, Loader2, Plus, Shuffle, HelpCircle, Info, Calculator, Trash2 } from 'lucide-react';
+import { CheckCircle2, Loader2, Plus, Shuffle, HelpCircle, Info, Calculator, Trash2 } from 'lucide-react';
 import { useLotteryContext } from '@/app/LotteryContext';
 
 import { triggerFlyToCart } from '@/components/FlyToCartAnimation';
@@ -81,10 +81,14 @@ export default function ReducerPage() {
 
   useEffect(() => { inputRevision.current++; }, [type, importMode, wheelingMode, reds, blues, conditions]);
 
+  const activeMode = getWheelingModes(type).some(mode => mode.id === wheelingMode) ? wheelingMode : 'FULL';
+  const estimate = getCombinationEstimate(type, reds.filter(n => n <= (type === 'SSQ' ? 33 : 35)).length, blues.filter(n => n <= (type === 'SSQ' ? 16 : 12)).length, activeMode);
+
   const handleGenerate = () => {
     if (importMode) {
       const selected = available.filter(r => importIds.has(r.id!));
       if (!selected.length) { toast.show('请先选择要导入的号码', 'warning'); return; }
+      if (selected.length > 500) { toast.show('输出上限为 500 注，请减少导入号码。', 'warning'); return; }
       const cleaned: FilterConditions = {};
       if (conditions.minSum && conditions.minSum > 0) cleaned.minSum = conditions.minSum;
       if (conditions.maxSum && conditions.maxSum > 0) cleaned.maxSum = conditions.maxSum;
@@ -103,10 +107,7 @@ export default function ReducerPage() {
       return;
     }
 
-    if (wheelingMode !== 'FULL' && reds.length > 16) {
-      toast.show("为了保证计算性能，智能缩水模式下红球最多选择16个号码。", 'warning');
-      return;
-    }
+    if (!estimate.allowed) { toast.show(estimate.reason!, 'warning'); return; }
 
     setIsGenerating(true);
     const revision = inputRevision.current;
@@ -126,10 +127,10 @@ export default function ReducerPage() {
           reds, 
           blues, 
           Object.keys(cleanedConditions).length > 0 ? cleanedConditions : undefined,
-          wheelingMode
+          activeMode
         );
         setResults(generated);
-        setCoverage(getCoverage(type, reds, wheelingMode, generated));
+        setCoverage(getCoverage(type, reds, activeMode, generated));
         toast.show(generated.length ? `已生成 ${generated.length} 注缩水方案` : '没有符合条件的号码', generated.length ? 'success' : 'warning');
       } catch (e) {
         console.error(e);
@@ -246,11 +247,7 @@ export default function ReducerPage() {
                 <span className="w-2.5 h-2.5 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]"></span>
                 选择红球池 <span className="text-slate-400 font-medium ml-1">({reds.length}个)</span>
               </div>
-              {reds.length > 16 && wheelingMode !== 'FULL' && (
-                <span className="text-[10px] md:text-xs text-rose-500 bg-rose-50 px-2 py-1 rounded-full flex items-center gap-1 font-bold border border-rose-100 animate-pulse">
-                  <AlertTriangle className="w-3 h-3" /> 旋转矩阵上限16个
-                </span>
-              )}
+
             </h3>
             <BallPicker 
               max={type === 'SSQ' ? 33 : 35} 
@@ -387,6 +384,12 @@ export default function ReducerPage() {
             </div>
           </div>
 
+          {!importMode && <div role="status" className={`rounded-2xl border p-4 text-sm leading-relaxed ${estimate.allowed ? 'border-emerald-100 bg-emerald-50/80 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
+            <p className="font-black">全复式：{estimate.fullCount.toLocaleString()} 注，{estimate.fullCost.toLocaleString()} 元</p>
+            <p className="mt-1">缩水或过滤后的注数及费用尚未计算，上述全复式数值是其上限。按每注 2 元普通投注计算，不含大乐透追加、倍数等附加投注。</p>
+            {!estimate.allowed && <p className="mt-2 font-black">{estimate.reason} 为保护计算和页面性能，以全复式上限判断。</p>}
+          </div>}
+
           <button 
             onClick={handleGenerate}
             disabled={isGenerating}
@@ -410,7 +413,7 @@ export default function ReducerPage() {
           <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-8">
             <h3 className="text-xl md:text-2xl font-black text-slate-900 flex items-center gap-3">
               生成结果 
-              <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100">{results.length} 注</span>
+              <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100">{results.length} 注 · {results.length * 2} 元</span>
             </h3>
             {!importMode && results.length > 0 && (
               <div className="flex gap-2">
@@ -425,6 +428,7 @@ export default function ReducerPage() {
             )}
           </div>
 
+          {(coverage || importResultCount !== null) && <p className="mb-4 text-xs text-slate-500">实际结果按每注 2 元普通投注计算，不含大乐透追加、倍数等附加投注。</p>}
           {!importMode && coverage && (
             <div role="status" className={`mb-4 rounded-2xl border p-4 text-sm leading-relaxed ${coverage.total > 0 && coverage.covered === coverage.total && results.length > 0 ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
               <p className="font-black">{coverage.total > 0 && coverage.covered === coverage.total && results.length > 0 ? '覆盖完整' : results.length === 0 ? '无结果，无法保证覆盖' : '覆盖不完整，原目标未得到保证'}</p>
