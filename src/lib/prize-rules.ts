@@ -18,6 +18,8 @@ import type { LotteryType } from './combinations';
 export interface PrizeTier {
   id: number;
   name: string;
+  /** 该奖级包含的 [主区命中数, 副区命中数] 形态列表 */
+  shapes: [number, number][];
   /** 单注命中该奖级的概率（已合并该奖级的所有中奖形态） */
   probability: number;
   /** 固定奖金（元）；浮动奖级为 null */
@@ -70,6 +72,7 @@ function build(
   return defs.map(d => ({
     id: d.id,
     name: d.name,
+    shapes: d.shapes,
     probability: d.shapes.reduce((s, [m, b]) => s + hyper(main, mainPick, m) * hyper(sub, subPick, b), 0),
     fixedPrize: d.prize,
     floating: d.prize === null,
@@ -126,6 +129,21 @@ export function getPrizeRules(type: LotteryType): PrizeRules {
   if (type === 'SSQ') return SSQ;
   if (type === 'DLT') return DLT;
   throw new Error(`不支持的彩种：${String(type)}`);
+}
+
+/**
+ * 根据主区（红球/前区）命中数和副区（蓝球/后区）命中数，快速查找命中的奖级。若未中奖则返回 null。
+ */
+export function matchPrizeTier(type: LotteryType, mainHits: number, subHits: number): PrizeTier | null {
+  const rules = getPrizeRules(type);
+  for (const tier of rules.tiers) {
+    for (const [m, s] of tier.shapes) {
+      if (m === mainHits && s === subHits) {
+        return tier;
+      }
+    }
+  }
+  return null;
 }
 
 /** 单注奖金扣税：超过阈值整笔扣税，恰好等于阈值不扣 */

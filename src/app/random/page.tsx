@@ -6,8 +6,9 @@ import { TumblingBall } from '@/components/TumblingBall';
 import { getRandomCombinationCapacity, generateRandomWithFixed } from '@/lib/combinations';
 import { storage, RandomSettings } from '@/lib/storage';
 import { toast } from '@/lib/notification';
-import { CheckCircle2, Loader2, Plus, Shuffle, Trash2 } from 'lucide-react';
+import { CheckCircle2, Loader2, Plus, Shuffle, Trash2, Scale } from 'lucide-react';
 import { useLotteryContext } from '@/app/LotteryContext';
+import { PayoutDistributionModal } from '@/components/PayoutDistributionModal';
 
 import { triggerFlyToCart } from '@/components/FlyToCartAnimation';
 
@@ -20,6 +21,7 @@ export default function RandomPage() {
   const [betCount, setBetCount] = useState<number>(5);
   const [results, setResults] = useState<{ reds: number[]; blues: number[] }[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [showPayoutModal, setShowPayoutModal] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
   const [animationKey, setAnimationKey] = useState(0);
 
@@ -275,7 +277,15 @@ export default function RandomPage() {
               <span className="text-xs font-bold text-orange-600 bg-orange-50 px-3 py-1 rounded-full border border-orange-100">{results.length} 注</span>
             </h3>
             {results.length > 0 && (
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowPayoutModal(true)}
+                  className="flex-1 md:flex-none flex items-center justify-center gap-1.5 px-3.5 py-2.5 bg-indigo-50 border border-indigo-200/80 text-indigo-700 rounded-xl text-xs font-black hover:bg-indigo-100/80 transition-all shadow-xs active:scale-95"
+                >
+                  <Scale className="w-3.5 h-3.5" />
+                  回报与概率分布
+                </button>
                 <button
                   onClick={(e) => handleAddToSelectionAll(e)}
                   className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-orange-500 text-white rounded-xl text-xs font-black hover:bg-orange-600 transition-all shadow-lg shadow-orange-100 active:scale-95"
@@ -382,6 +392,13 @@ export default function RandomPage() {
           </div>
         </div>
       </div>
+
+      <PayoutDistributionModal
+        isOpen={showPayoutModal}
+        onClose={() => setShowPayoutModal(false)}
+        type={type}
+        tickets={results}
+      />
     </div>
   );
 }

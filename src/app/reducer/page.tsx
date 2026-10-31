@@ -14,8 +14,9 @@ import {
 } from '@/lib/combinations';
 import { storage, ReducerSettings, SavedCombination } from '@/lib/storage';
 import { toast } from '@/lib/notification';
-import { CheckCircle2, Loader2, Plus, Shuffle, HelpCircle, Info, Calculator, Trash2 } from 'lucide-react';
+import { CheckCircle2, Loader2, Plus, Shuffle, HelpCircle, Info, Calculator, Trash2, Scale } from 'lucide-react';
 import { useLotteryContext } from '@/app/LotteryContext';
+import { PayoutDistributionModal } from '@/components/PayoutDistributionModal';
 
 import { triggerFlyToCart } from '@/components/FlyToCartAnimation';
 
@@ -42,6 +43,7 @@ export default function ReducerPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [showWheelingTip, setShowWheelingTip] = useState(false);
   const [showFilterTip, setShowFilterTip] = useState(false);
+  const [showPayoutModal, setShowPayoutModal] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
 
   // Track existing data for active states
@@ -602,7 +604,15 @@ export default function ReducerPage() {
               <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100">{results.length} 注 · {results.length * 2} 元</span>
             </h3>
             {!importMode && results.length > 0 && (
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowPayoutModal(true)}
+                  className="flex-1 md:flex-none flex items-center justify-center gap-1.5 px-3.5 py-2.5 bg-indigo-50 border border-indigo-200/80 text-indigo-700 rounded-xl text-xs font-black hover:bg-indigo-100/80 transition-all shadow-xs active:scale-95"
+                >
+                  <Scale className="w-3.5 h-3.5" />
+                  回报与概率分布
+                </button>
                 <button
                   onClick={(e) => handleAddToSelectionAll(e)}
                   className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-500 text-white rounded-xl text-xs font-black hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-100 active:scale-95"
@@ -742,6 +752,14 @@ export default function ReducerPage() {
           </div>
         </div>
       </div>
+
+      <PayoutDistributionModal
+        isOpen={showPayoutModal}
+        onClose={() => setShowPayoutModal(false)}
+        type={type}
+        tickets={results}
+        pool={reds}
+      />
     </div>
   );
 }

@@ -5,13 +5,14 @@ import { toast } from '@/lib/notification';
 import {
   Trash2, Plus, Minus,
   Copy, Check, Star, X, LayoutGrid, Image as ImageIcon, Download,
-  Calculator, RefreshCcw
+  Calculator, RefreshCcw, Scale
 } from 'lucide-react';
 import Link from 'next/link';
 import { storage, SavedCombination } from '@/lib/storage';
 import { useLotteryContext } from '@/app/LotteryContext';
 import { motion, AnimatePresence, useMotionValue, useTransform, PanInfo } from 'framer-motion';
 import confetti from 'canvas-confetti';
+import { PayoutDistributionModal } from '@/components/PayoutDistributionModal';
 
 const celebrateCopy = () => {
   confetti({
@@ -185,6 +186,7 @@ export default function SavedPage() {
   const { activeType: activeTab } = useLotteryContext();
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [dltAdditional, setDltAdditional] = useState(false);
+  const [showPayoutModal, setShowPayoutModal] = useState(false);
   const [image, setImage] = useState<{ url: string; key: string } | null>(null);
   const isAdditional = activeTab === 'DLT' && dltAdditional;
   const imageKey = JSON.stringify([
@@ -428,6 +430,17 @@ export default function SavedPage() {
     }
   };
 
+  const targetRecords = selectedInCurrentTab.length > 0 ? selectedInCurrentTab : filteredRecords;
+  const payoutTickets: { reds: number[]; blues: number[] }[] = [];
+  for (const r of targetRecords) {
+    const reds = r.reds.split(',').map(n => parseInt(n.trim(), 10)).filter(n => !Number.isNaN(n));
+    const blues = r.blues.split(',').map(n => parseInt(n.trim(), 10)).filter(n => !Number.isNaN(n));
+    const mult = r.multiplier || 1;
+    for (let m = 0; m < mult; m++) {
+      payoutTickets.push({ reds, blues });
+    }
+  }
+
   return (
     <div className="relative min-h-full p-4 md:p-8 max-w-7xl mx-auto pb-40 md:pb-32 overflow-x-hidden">
       <div className="absolute top-0 right-0 -z-10 w-96 h-96 bg-blue-50 rounded-full blur-3xl opacity-50 -mr-24 -mt-24 pointer-events-none" />
@@ -451,6 +464,15 @@ export default function SavedPage() {
             )}
             {filteredRecords.length > 0 && (
               <>
+                <button
+                  type="button"
+                  onClick={() => setShowPayoutModal(true)}
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-black bg-indigo-50 text-indigo-700 border border-indigo-200/80 hover:bg-indigo-100 transition-all active:scale-95 shadow-xs"
+                  title="查看当前方案在全样本空间下的理论期望与中奖分布"
+                >
+                  <Scale className="w-4 h-4" />
+                  <span>回报与概率分布</span>
+                </button>
                 <button
                   onClick={handleClearCurrent}
                   className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-black bg-white text-rose-500 border border-rose-100 hover:bg-rose-50 transition-all shadow-sm active:scale-95"
@@ -600,6 +622,14 @@ export default function SavedPage() {
           </div>
         )}
       </AnimatePresence>
+
+      <PayoutDistributionModal
+        isOpen={showPayoutModal}
+        onClose={() => setShowPayoutModal(false)}
+        type={activeTab}
+        tickets={payoutTickets}
+        addOn={isAdditional}
+      />
     </div>
   );
 }
