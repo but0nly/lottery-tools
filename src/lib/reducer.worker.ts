@@ -1,4 +1,4 @@
-import { generateCombinations, getCoverage, type FilterConditions, type LotteryType, type WheelingMode } from './combinations';
+import { generateCombinations, getCoverage, getCoverageBreakdown, type FilterConditions, type LotteryType, type WheelingMode } from './combinations';
 
 export interface ReducerRequest {
   type: LotteryType;
@@ -16,7 +16,8 @@ self.onmessage = (event: MessageEvent<ReducerRequest>) => {
     });
     self.postMessage({ kind: 'coverage' });
     const coverage = getCoverage(type, reds, mode, results);
-    self.postMessage({ kind: 'complete', results, coverage });
+    const breakdown = getCoverageBreakdown(type, reds, mode, results);
+    self.postMessage({ kind: 'complete', results, coverage, breakdown });
   } catch (error) {
     self.postMessage({ kind: 'error', message: error instanceof Error ? error.message : '计算失败' });
   }

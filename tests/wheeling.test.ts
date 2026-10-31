@@ -1,16 +1,42 @@
 import { test } from 'node:test';
 import { strict as assert } from 'node:assert';
-import { generateCombinations, getWheelingModes } from '../src/lib/combinations.ts';
+import { calculateAC, generateCombinations, getCoverageBreakdown, getWheelingModes } from '../src/lib/combinations.ts';
 
 test('大乐透只提供实际前区五个号码的缩水模式', () => {
   assert.deepEqual(getWheelingModes('DLT').map(mode => mode.id), ['FULL', 'M5G5', 'M5G4']);
 });
 
-test('过滤后只统计最终注数覆盖的前区开奖情况', async () => {
+test('过滤后只统计最终注数覆盖的前区开奖情况，且优先从满足过滤条件的候选注中覆盖', async () => {
   const { getCoverage } = await import('../src/lib/combinations.ts');
   const pool = [1, 2, 3, 4, 5, 6];
   const results = generateCombinations('DLT', pool, [1, 2], { maxSum: 15 }, 'M5G5');
   assert.deepEqual(getCoverage('DLT', pool, 'M5G5', results), { matches: 5, guarantee: 5, covered: 1, total: 6 });
+
+  // Filter-aware covering: in M5G4 on 6 balls, even when maxSum: 15 restricts the candidate to [1,2,3,4,5],
+  // that single valid candidate still covers all 6 five-number draws with >= 4 matches!
+  const m5g4Results = generateCombinations('DLT', pool, [1, 2], { maxSum: 15 }, 'M5G4');
+  assert.equal(m5g4Results.length, 1);
+  assert.deepEqual(getCoverage('DLT', pool, 'M5G4', m5g4Results), { matches: 5, guarantee: 4, covered: 6, total: 6 });
+});
+
+test('支持奇偶比与AC值（算术复杂度）过滤及命中等级分布明细', () => {
+  assert.equal(calculateAC([1, 2, 3, 4, 5, 6]), 0);
+  assert.ok(calculateAC([1, 4, 9, 16, 25, 33]) >= 8);
+
+  const pool = [1, 2, 3, 4, 7, 11, 18, 25];
+  const results = generateCombinations('SSQ', pool, [1], { oddEvenRatio: [3, 3], minAC: 6 }, 'FULL');
+  assert.ok(results.length > 0);
+  for (const r of results) {
+    const odds = r.reds.filter(n => n % 2 !== 0).length;
+    assert.equal(odds, 3);
+    assert.ok(calculateAC(r.reds) >= 6);
+  }
+
+  const wheel = generateCombinations('SSQ', pool, [1], undefined, 'M6G5');
+  const breakdown = getCoverageBreakdown('SSQ', pool, 'M6G5', wheel);
+  const tier5 = breakdown.find(b => b.minHit === 5)!;
+  assert.ok(tier5.minTickets >= 1);
+  assert.equal(tier5.coveredOutcomes, tier5.totalOutcomes);
 });
 
 test('两种彩票的每种模式覆盖小号码池中的所有目标情况', async () => {
@@ -21,7 +47,6 @@ test('两种彩票的每种模式覆盖小号码池中的所有目标情况', as
     for (const mode of getWheelingModes(type)) {
       const tickets = generateCombinations(type, pool, blue, undefined, mode.id);
       const coverage = getCoverage(type, pool, mode.id, tickets);
-      // Enumerate all subsets independently and check each against actual final tickets.
       const outcomes = Array.from({ length: 1 << pool.length }, (_, mask) => pool.filter((_, i) => mask & (1 << i))).filter(draw => draw.length === coverage.matches);
       const covered = outcomes.filter(draw => tickets.some(ticket => draw.filter(n => ticket.reds.includes(n)).length >= coverage.guarantee)).length;
       assert.equal(covered, outcomes.length, `${type} ${mode.id}`);

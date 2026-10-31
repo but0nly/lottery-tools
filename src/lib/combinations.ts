@@ -40,6 +40,19 @@ function modeTargets(type: LotteryType, mode: WheelingMode): { matches: number; 
   return { matches: 5, guarantee: 4 };
 }
 
+function choose(n: number, k: number): number {
+  if (k < 0 || k > n) return 0;
+  let result = 1;
+  for (let i = 1; i <= k; i++) result = result * (n - i + 1) / i;
+  return Math.round(result);
+}
+
+function popcount32(x: number): number {
+  x = x - ((x >>> 1) & 0x55555555);
+  x = (x & 0x33333333) + ((x >>> 2) & 0x33333333);
+  return (((x + (x >>> 4)) & 0x0f0f0f0f) * 0x01010101) >>> 24;
+}
+
 /** Coverage of the final tickets, considering only red/front numbers. */
 export function getCoverage(type: LotteryType, pool: number[], mode: WheelingMode, results: { reds: number[]; blues: number[] }[]) {
   const { matches, guarantee } = modeTargets(type, mode);
@@ -49,21 +62,112 @@ export function getCoverage(type: LotteryType, pool: number[], mode: WheelingMod
   return { matches, guarantee, covered, total: outcomes.length };
 }
 
+export interface CoverageTierBreakdown {
+  minHit: number;
+  minTickets: number;
+  maxTickets: number;
+  avgTickets: number;
+  coveredOutcomes: number;
+  totalOutcomes: number;
+}
+
+/** Detailed breakdown of guaranteed and expected hits across all m-match outcomes in the pool. */
+export function getCoverageBreakdown(
+  type: LotteryType,
+  pool: number[],
+  mode: WheelingMode,
+  results: { reds: number[]; blues: number[] }[]
+): CoverageTierBreakdown[] {
+  const { matches } = modeTargets(type, mode);
+  const reqA = type === 'SSQ' ? 6 : 5;
+  const outcomes = combine(pool, matches);
+  const tickets = [...new Map(results.map(result => [result.reds.join(','), result.reds])).values()];
+  const tiers: number[] = [];
+  for (let h = Math.min(reqA, matches); h >= 3; h--) tiers.push(h);
+
+  if (outcomes.length === 0 || tickets.length === 0) {
+    return tiers.map(minHit => ({
+      minHit,
+      minTickets: 0,
+      maxTickets: 0,
+      avgTickets: 0,
+      coveredOutcomes: 0,
+      totalOutcomes: outcomes.length,
+    }));
+  }
+
+  const indexByNum = new Map<number, number>();
+  pool.forEach((n, idx) => indexByNum.set(n, idx));
+
+  const useBitmask = pool.length <= 30;
+  const ticketMasks = useBitmask
+    ? tickets.map(t => t.reduce((acc, n) => acc | (1 << (indexByNum.get(n) ?? 0)), 0))
+    : [];
+  const outcomeMasks = useBitmask
+    ? outcomes.map(o => o.reduce((acc, n) => acc | (1 << (indexByNum.get(n) ?? 0)), 0))
+    : [];
+
+  return tiers.map(minHit => {
+    let minTickets = Infinity;
+    let maxTickets = 0;
+    let sumTickets = 0;
+    let coveredOutcomes = 0;
+
+    for (let i = 0; i < outcomes.length; i++) {
+      let count = 0;
+      if (useBitmask) {
+        const oMask = outcomeMasks[i];
+        for (let j = 0; j < ticketMasks.length; j++) {
+          if (popcount32(ticketMasks[j] & oMask) >= minHit) count++;
+        }
+      } else {
+        const outcome = outcomes[i];
+        for (const ticket of tickets) {
+          if (outcome.filter(n => ticket.includes(n)).length >= minHit) count++;
+        }
+      }
+      if (count < minTickets) minTickets = count;
+      if (count > maxTickets) maxTickets = count;
+      sumTickets += count;
+      if (count > 0) coveredOutcomes++;
+    }
+
+    return {
+      minHit,
+      minTickets: minTickets === Infinity ? 0 : minTickets,
+      maxTickets,
+      avgTickets: Number((sumTickets / outcomes.length).toFixed(2)),
+      coveredOutcomes,
+      totalOutcomes: outcomes.length,
+    };
+  });
+}
+
 /** Full ordinary-ticket count before optional reduction or filtering. */
 export function getCombinationEstimate(type: LotteryType, countA: number, countB: number, mode: WheelingMode) {
   if (type !== 'SSQ' && type !== 'DLT') throw new Error('未知彩票类型');
-  const { matches } = modeTargets(type, mode);
+  const { matches, guarantee } = modeTargets(type, mode);
   const reqA = type === 'SSQ' ? 6 : 5;
   const reqB = type === 'SSQ' ? 1 : 2;
   if (!Number.isInteger(countA) || countA < 0 || countA > (type === 'SSQ' ? 33 : 35) ||
       !Number.isInteger(countB) || countB < 0 || countB > (type === 'SSQ' ? 16 : 12)) throw new Error('号码池数量无效');
   const candidates = countA < reqA ? 0 : choose(countA, reqA);
   const outcomes = countA < matches ? 0 : choose(countA, matches);
-  const fullCount = candidates * (countB < reqB ? 0 : choose(countB, reqB));
-  // The greedy algorithm can scan all candidates for every selected ticket and draw.
-  const work = mode === 'FULL' ? candidates * outcomes : candidates * candidates * outcomes;
-  const reason = fullCount && work > 2_000_000 ? '计算规模过大，请减少红球或前区号码。' :
-    fullCount > 500 ? '输出上限为 500 注，请减少号码池。' : null;
+  const blueCombs = countB < reqB ? 0 : choose(countB, reqB);
+  const fullCount = candidates * blueCombs;
+
+  // Bitwise greedy covering scans remaining outcomes against candidates; cap at countA <= 18 (or work <= 4e8).
+  const maxCoverPerTicket = Math.max(1, choose(reqA, guarantee) * choose(Math.max(0, countA - reqA), matches - guarantee));
+  const minWheelTickets = mode === 'FULL' ? candidates : Math.ceil(outcomes / maxCoverPerTicket);
+  const work = mode === 'FULL' ? candidates : candidates * outcomes;
+  const maxWork = 350_000_000;
+
+  const reason = fullCount && (work > maxWork || (mode !== 'FULL' && countA > 18))
+    ? '计算规模过大，请减少红球或前区号码。'
+    : (mode === 'FULL' ? fullCount > 500 : minWheelTickets * blueCombs > 500)
+      ? '输出上限为 500 注，请减少号码池。'
+      : null;
+
   return { fullCount, fullCost: fullCount * 2, allowed: reason === null, reason };
 }
 
@@ -72,22 +176,43 @@ export interface FilterConditions {
   maxSum?: number;
   maxConsecutive?: number;
   oddEvenRatio?: [number, number]; // [odds, evens]
+  minAC?: number;
+  maxAC?: number;
 }
 
-export function isConsecutive(arr: number[], maxLen: number): boolean {
+/**
+ * Calculate Arithmetic Complexity (AC value) of a combination.
+ * AC = (number of distinct positive pairwise differences) - (k - 1)
+ */
+export function calculateAC(comb: number[]): number {
+  if (comb.length <= 1) return 0;
+  const diffs = new Set<number>();
+  for (let i = 0; i < comb.length; i++) {
+    for (let j = i + 1; j < comb.length; j++) {
+      diffs.add(Math.abs(comb[i] - comb[j]));
+    }
+  }
+  return Math.max(0, diffs.size - (comb.length - 1));
+}
+
+export function getMaxConsecutiveLength(arr: number[]): number {
+  if (arr.length === 0) return 0;
+  const sorted = [...arr].sort((a, b) => a - b);
   let currentLen = 1;
-  let maxConsecutive = 1;
-  for (let i = 1; i < arr.length; i++) {
-    if (arr[i] === arr[i - 1] + 1) {
+  let maxLen = 1;
+  for (let i = 1; i < sorted.length; i++) {
+    if (sorted[i] === sorted[i - 1] + 1) {
       currentLen++;
-      if (currentLen > maxConsecutive) {
-        maxConsecutive = currentLen;
-      }
-    } else {
+      if (currentLen > maxLen) maxLen = currentLen;
+    } else if (sorted[i] !== sorted[i - 1]) {
       currentLen = 1;
     }
   }
-  return maxConsecutive >= maxLen;
+  return maxLen;
+}
+
+export function isConsecutive(arr: number[], maxLen: number): boolean {
+  return getMaxConsecutiveLength(arr) >= maxLen;
 }
 
 export function filterCombination(comb: number[], conditions: FilterConditions): boolean {
@@ -109,73 +234,97 @@ export function filterCombination(comb: number[], conditions: FilterConditions):
     }
   }
 
+  if (conditions.minAC !== undefined || conditions.maxAC !== undefined) {
+    const ac = calculateAC(comb);
+    if (conditions.minAC !== undefined && ac < conditions.minAC) return false;
+    if (conditions.maxAC !== undefined && ac > conditions.maxAC) return false;
+  }
+
   return true;
 }
 
 /**
- * Greedy Covering Algorithm for Rotation Matrix (Wheeling System)
+ * Bitwise Greedy Covering Algorithm for Rotation Matrix (Wheeling System)
  * @param pool The selected numbers pool
  * @param k Size of each ticket (6 for SSQ, 5 for DLT)
  * @param m Condition: number of matches in pool (usually 6 or 5)
  * @param t Guarantee: guarantee at least t matches
+ * @param onProgress Optional progress callback
+ * @param candidateUniverse Optional pre-filtered candidate tickets
  */
 export function generateRotationMatrix(
   pool: number[],
   k: number,
   m: number,
   t: number,
-  onProgress?: (fraction: number) => void
+  onProgress?: (fraction: number) => void,
+  candidateUniverse?: number[][]
 ): number[][] {
-  const universe = combine(pool, k); // All possible tickets
-  const draws = combine(pool, m); // All possible draw outcomes to cover
+  const universe = candidateUniverse ?? combine(pool, k);
+  const draws = combine(pool, m);
+  if (universe.length === 0 || draws.length === 0) return [];
 
-  const selected: number[][] = [];
-  const coveredDraws = new Set<string>();
+  const indexByNum = new Map<number, number>();
+  pool.forEach((n, idx) => indexByNum.set(n, idx));
 
-  const getIntersectionSize = (a: number[], b: number[]) => {
-    let count = 0;
-    const setB = new Set(b);
-    for (const x of a) if (setB.has(x)) count++;
-    return count;
+  const toMask = (arr: number[]) => {
+    let mask = 0;
+    for (let i = 0; i < arr.length; i++) {
+      mask |= 1 << (indexByNum.get(arr[i]) ?? 0);
+    }
+    return mask;
   };
 
-  const drawStrings = draws.map(d => d.join(','));
+  const ticketMasks = new Int32Array(universe.length);
+  for (let i = 0; i < universe.length; i++) ticketMasks[i] = toMask(universe[i]);
 
-  while (coveredDraws.size < draws.length) {
-    let bestTicket: number[] | null = null;
-    let maxNewCovered = -1;
-    let bestTicketNewCoveredSet: string[] = [];
+  const uncoveredMasks = new Int32Array(draws.length);
+  for (let i = 0; i < draws.length; i++) uncoveredMasks[i] = toMask(draws[i]);
+  let uncoveredCount = draws.length;
 
-    // Optimization: if universe is huge, we might need a faster way. 
-    // But for pool <= 16, universe is max 8008 for SSQ.
-    for (const ticket of universe) {
-      const newCoveredForThisTicket: string[] = [];
-      for (let i = 0; i < draws.length; i++) {
-        const dStr = drawStrings[i];
-        if (coveredDraws.has(dStr)) continue;
-        
-        if (getIntersectionSize(ticket, draws[i]) >= t) {
-          newCoveredForThisTicket.push(dStr);
+  const usedTicket = new Uint8Array(universe.length);
+  const selected: number[][] = [];
+  const totalDraws = draws.length;
+
+  // Theoretical maximum draws a single ticket can cover in one step
+  const maxPossiblePerStep = choose(k, t) * choose(Math.max(0, pool.length - k), m - t);
+
+  while (uncoveredCount > 0) {
+    let bestTicketIdx = -1;
+    let maxNewCovered = 0;
+
+    for (let c = 0; c < universe.length; c++) {
+      if (usedTicket[c]) continue;
+      const tMask = ticketMasks[c];
+      let count = 0;
+      for (let d = 0; d < uncoveredCount; d++) {
+        if (popcount32(tMask & uncoveredMasks[d]) >= t) {
+          count++;
         }
       }
-
-      if (newCoveredForThisTicket.length > maxNewCovered) {
-        maxNewCovered = newCoveredForThisTicket.length;
-        bestTicket = ticket;
-        bestTicketNewCoveredSet = newCoveredForThisTicket;
+      if (count > maxNewCovered) {
+        maxNewCovered = count;
+        bestTicketIdx = c;
+        if (maxNewCovered >= uncoveredCount || (maxPossiblePerStep > 0 && maxNewCovered >= maxPossiblePerStep)) {
+          break;
+        }
       }
-      
-      // Early exit if we find a ticket that covers a lot (heuristic)
-      if (maxNewCovered >= draws.length / 5) break; 
     }
 
-    if (!bestTicket || maxNewCovered === 0) break;
+    if (bestTicketIdx < 0 || maxNewCovered === 0) break;
 
-    selected.push(bestTicket);
-    for (const d of bestTicketNewCoveredSet) {
-      coveredDraws.add(d);
+    usedTicket[bestTicketIdx] = 1;
+    selected.push(universe[bestTicketIdx]);
+
+    const chosenMask = ticketMasks[bestTicketIdx];
+    let writeIdx = 0;
+    for (let d = 0; d < uncoveredCount; d++) {
+      if (popcount32(chosenMask & uncoveredMasks[d]) < t) {
+        uncoveredMasks[writeIdx++] = uncoveredMasks[d];
+      }
     }
-    onProgress?.(coveredDraws.size / draws.length);
+    uncoveredCount = writeIdx;
+    onProgress?.((totalDraws - uncoveredCount) / totalDraws);
   }
 
   return selected;
@@ -195,23 +344,29 @@ export function generateCombinations(
   const reqA = type === 'SSQ' ? 6 : 5;
   const reqB = type === 'SSQ' ? 1 : 2;
 
+  const allCandidates = combine(poolA, reqA);
+  const validCandidates = conditions
+    ? allCandidates.filter((c) => filterCombination(c, conditions))
+    : allCandidates;
+
   let aCombs: number[][] = [];
 
   if (wheelingMode === 'FULL') {
-    aCombs = combine(poolA, reqA);
+    aCombs = validCandidates;
     onProgress?.(1);
   } else {
     const { matches: m, guarantee: t } = modeTargets(type, wheelingMode);
-
-    aCombs = generateRotationMatrix(poolA, reqA, m, t, onProgress);
+    aCombs = generateRotationMatrix(poolA, reqA, m, t, onProgress, validCandidates);
   }
 
   const bCombs = combine(poolB, reqB);
 
-  const filteredA = conditions ? aCombs.filter((c) => filterCombination(c, conditions)) : aCombs;
+  if (aCombs.length * bCombs.length > 500) {
+    throw new Error('输出上限为 500 注，请减少号码池。');
+  }
 
   const results: { reds: number[]; blues: number[] }[] = [];
-  for (const a of filteredA) {
+  for (const a of aCombs) {
     for (const b of bCombs) {
       results.push({ reds: a, blues: b });
     }
@@ -220,67 +375,15 @@ export function generateCombinations(
   return results;
 }
 
-export function getLeastFrequent(history: { reds: string, blues: string }[], type: LotteryType) {
-  const redCounts: Record<number, number> = {};
-  const blueCounts: Record<number, number> = {};
-
-  const maxRed = type === 'SSQ' ? 33 : 35;
-  const maxBlue = type === 'SSQ' ? 16 : 12;
-
-  for (let i = 1; i <= maxRed; i++) redCounts[i] = 0;
-  for (let i = 1; i <= maxBlue; i++) blueCounts[i] = 0;
-
-  history.forEach(draw => {
-    if (!draw.reds || !draw.blues) return;
-    draw.reds.split(',').forEach(n => { 
-      const num = parseInt(n);
-      if (!isNaN(num)) redCounts[num]++; 
-    });
-    draw.blues.split(',').forEach(n => { 
-      const num = parseInt(n);
-      if (!isNaN(num)) blueCounts[num]++; 
-    });
-  });
-
-  // Introduce a small random factor to break ties and make it feel like a 'calculation'
-  // Instead of just sorting by count, we sort by (count + tiny_random)
-  const sortedReds = Object.entries(redCounts)
-    .map(([num, count]) => ({ 
-      num: parseInt(num), 
-      score: count + Math.random() * 0.1 // Random factor for tie-breaking
-    }))
-    .sort((a, b) => a.score - b.score)
-    .map(e => e.num);
-
-  const sortedBlues = Object.entries(blueCounts)
-    .map(([num, count]) => ({ 
-      num: parseInt(num), 
-      score: count + Math.random() * 0.1 
-    }))
-    .sort((a, b) => a.score - b.score)
-    .map(e => e.num);
-
-  const reqA = type === 'SSQ' ? 6 : 5;
-  const reqB = type === 'SSQ' ? 1 : 2;
-
-  // We pick from the coldest pool (e.g., bottom 10 numbers) instead of just the absolute top N
-  // to make the generator more interactive and 'fresh'
-  const pickReds = sortedReds.slice(0, reqA + 4).sort(() => Math.random() - 0.5).slice(0, reqA);
-  const pickBlues = sortedBlues.slice(0, reqB + 2).sort(() => Math.random() - 0.5).slice(0, reqB);
-
-  return {
-    reds: pickReds.sort((a, b) => a - b),
-    blues: pickBlues.sort((a, b) => a - b)
-  };
-}
-
 export interface GameTheoryConfig {
-  monthPenalty: number;      // 1-12月偏好
-  birthdayPenalty: number;   // 1-31日偏好
-  luckyPenalty: number;      // 6,8,16...等吉利数偏好
-  largeNumberBonus: number;  // 31以上大数冷门加成
-  blueMonthPenalty: number;  // 蓝球1-12偏好
-  blueLargeBonus: number;    // 蓝球12以上冷门加成
+  monthPenalty: number;        // 1-12月偏好
+  birthdayPenalty: number;     // 1-31日偏好
+  luckyPenalty: number;        // 6,8,16...等吉利数偏好
+  largeNumberBonus: number;    // 31以上大数冷门加成
+  blueMonthPenalty: number;    // 蓝球1-12偏好
+  blueLargeBonus: number;      // 蓝球12以上冷门加成
+  patternPenalty: number;      // 规律形态避让（连号/等差/同尾数/低AC值）
+  allBirthdayPenalty: number;  // 纯生日组合避让（整注全≤31惩罚）
 }
 
 export const DEFAULT_GAME_THEORY_CONFIG: GameTheoryConfig = {
@@ -289,60 +392,95 @@ export const DEFAULT_GAME_THEORY_CONFIG: GameTheoryConfig = {
   luckyPenalty: 0.2,
   largeNumberBonus: 0.4,
   blueMonthPenalty: 0.3,
-  blueLargeBonus: 0.2
+  blueLargeBonus: 0.2,
+  patternPenalty: 0.5,
+  allBirthdayPenalty: 0.5,
 };
 
+export interface CombinationCrowdingDiagnostic {
+  coldnessScore: number;      // 0-100, higher means more unpopular / lower crowding risk
+  acValue: number;
+  largeCount: number;         // count of red/front balls > 31
+  maxConsecutive: number;
+  maxSameTail: number;
+  crowdingPenalty: number;
+}
+
 /**
- * Game Theory Algorithm: Generate unpopular numbers to maximize EV
- * Avoids birthday numbers (1-31), lucky numbers, and common patterns.
+ * Evaluate combo-level and ball-level crowding risk for a ticket.
  */
-export function generateGameTheoryCombination(
-  type: LotteryType, 
+export function evaluateCombinationCrowding(
+  type: LotteryType,
+  reds: number[],
+  blues: number[],
   config: GameTheoryConfig = DEFAULT_GAME_THEORY_CONFIG
-): { reds: number[], blues: number[] } {
-  const maxRed = type === 'SSQ' ? 33 : 35;
-  const maxBlue = type === 'SSQ' ? 16 : 12;
-  const reqRed = type === 'SSQ' ? 6 : 5;
-  const reqBlue = type === 'SSQ' ? 1 : 2;
+): CombinationCrowdingDiagnostic {
+  const sortedReds = [...reds].sort((a, b) => a - b);
+  const acValue = calculateAC(sortedReds);
+  const maxConsecutive = getMaxConsecutiveLength(sortedReds);
+  const largeCount = sortedReds.filter(n => n > 31).length;
 
-  // Calculate scores for each number (Lower is better/colder in terms of human psychology)
-  const getRedScore = (n: number) => {
-    let score = 0;
-    // 1-31 are birthday numbers, 1-12 are month numbers (extreme popularity)
-    if (n <= 12) score += config.monthPenalty; 
-    else if (n <= 31) score += config.birthdayPenalty;
-    
-    // Lucky numbers
-    if ([6, 8, 16, 18, 26, 28].includes(n)) score += config.luckyPenalty;
-    
-    // Edge numbers (often overlooked)
-    if (n === 1 || n === maxRed) score -= 0.05;
-    
-    // High numbers (above 31) are less chosen by humans
-    if (n > 31) score -= config.largeNumberBonus;
+  const tailCounts = new Map<number, number>();
+  for (const n of sortedReds) {
+    const tail = n % 10;
+    tailCounts.set(tail, (tailCounts.get(tail) ?? 0) + 1);
+  }
+  const maxSameTail = Math.max(0, ...tailCounts.values());
 
-    return score;
-  };
+  // 1. Ball-level score
+  let ballScore = 0;
+  for (const n of sortedReds) {
+    if (n <= 12) ballScore += config.monthPenalty;
+    else if (n <= 31) ballScore += config.birthdayPenalty;
+    else ballScore -= config.largeNumberBonus;
+    if ([6, 8, 16, 18, 26, 28].includes(n)) ballScore += config.luckyPenalty;
+  }
+  for (const b of blues) {
+    if (b <= 12) ballScore += config.blueMonthPenalty;
+    else ballScore -= config.blueLargeBonus;
+    if ([6, 8].includes(b)) ballScore += 0.1;
+  }
 
-  const getBlueScore = (n: number) => {
-    let score = 0;
-    if (n <= 12) score += config.blueMonthPenalty; // months
-    if ([6, 8].includes(n)) score += 0.1; // basic lucky
-    if (n > 12) score -= config.blueLargeBonus;
-    return score;
-  };
+  // 2. Combo-level pattern crowding penalty
+  const pWeight = config.patternPenalty ?? 0.5;
+  const bWeight = config.allBirthdayPenalty ?? 0.5;
+  let patternScore = 0;
 
-  // Weighted random selection based on inverse scores
-  const allReds = Array.from({ length: maxRed }, (_, i) => i + 1);
-  const allBlues = Array.from({ length: maxBlue }, (_, i) => i + 1);
+  // Low AC value penalty (arithmetic progressions / symmetric patterns)
+  const targetAC = type === 'SSQ' ? 7 : 4;
+  if (acValue < targetAC) {
+    patternScore += (targetAC - acValue) * 0.45 * pWeight;
+  }
 
-  // We add some randomness to avoid giving the exact same "unpopular" set to everyone
-  const sortedReds = allReds.sort((a, b) => (getRedScore(a) + Math.random() * 1.5) - (getRedScore(b) + Math.random() * 1.5));
-  const sortedBlues = allBlues.sort((a, b) => (getBlueScore(a) + Math.random() * 1.5) - (getBlueScore(b) + Math.random() * 1.5));
+  // Consecutive run penalty
+  if (maxConsecutive >= 3) {
+    patternScore += (maxConsecutive - 2) * 0.7 * pWeight;
+  } else if (maxConsecutive === 2) {
+    patternScore += 0.15 * pWeight;
+  }
+
+  // Same tail (mod 10) clustering penalty
+  if (maxSameTail >= 3) {
+    patternScore += (maxSameTail - 2) * 0.55 * pWeight;
+  }
+
+  // All-birthday ticket penalty (no ball > 31)
+  if (largeCount === 0) {
+    patternScore += 1.1 * bWeight;
+  }
+
+  const crowdingPenalty = ballScore + patternScore;
+  // Normalize into a 0-100 coldness score where ~85+ is strongly anti-crowded
+  const rawScore = 78 - crowdingPenalty * 14;
+  const coldnessScore = Math.max(15, Math.min(99, Math.round(rawScore)));
 
   return {
-    reds: sortedReds.slice(0, reqRed).sort((a, b) => a - b),
-    blues: sortedBlues.slice(0, reqBlue).sort((a, b) => a - b)
+    coldnessScore,
+    acValue,
+    largeCount,
+    maxConsecutive,
+    maxSameTail,
+    crowdingPenalty,
   };
 }
 
@@ -368,28 +506,22 @@ function randomPools(type: LotteryType, fixedReds: number[], fixedBlues: number[
   };
 }
 
-function choose(n: number, k: number): number {
-  let result = 1;
-  for (let i = 1; i <= k; i++) result = result * (n - i + 1) / i;
-  return Math.round(result);
-}
-
 export function getRandomCombinationCapacity(type: LotteryType, fixedReds: number[], fixedBlues: number[], excludedReds: number[] = [], excludedBlues: number[] = []): number {
   const { red, blue } = randomPools(type, fixedReds, fixedBlues, excludedReds, excludedBlues);
   return choose(red.pool.length, red.needed) * choose(blue.pool.length, blue.needed);
 }
 
-/** Uniform sampling over valid tickets, with optional sampling without replacement. */
+/** Uniform sampling without replacement over valid tickets. */
 export function generateRandomWithFixed(
   type: LotteryType, fixedReds: number[], fixedBlues: number[], count: number = 1,
   excludedReds: number[] = [], excludedBlues: number[] = [],
-  options: { allowDuplicates?: boolean; random?: () => number } = {}
+  options: { random?: () => number } = {}
 ): { reds: number[]; blues: number[] }[] {
   if (!Number.isSafeInteger(count) || count < 1) throw new Error('注数必须为正整数');
   const { red, blue } = randomPools(type, fixedReds, fixedBlues, excludedReds, excludedBlues);
   const blueCount = choose(blue.pool.length, blue.needed);
   const capacity = choose(red.pool.length, red.needed) * blueCount;
-  if (options.allowDuplicates === false && count > capacity) throw new Error(`可用组合仅有 ${capacity} 注`);
+  if (count > capacity) throw new Error(`可用组合仅有 ${capacity} 注`);
   const random = options.random ?? Math.random;
   const draw = (limit: number) => {
     const value = random();
@@ -411,13 +543,10 @@ export function generateRandomWithFixed(
   // Partial Fisher–Yates over ranks, stored sparsely to avoid enumerating the space.
   const swaps = new Map<number, number>();
   return Array.from({ length: count }, (_, i) => {
-    let rank: number;
-    if (options.allowDuplicates === false) {
-      const remaining = capacity - i;
-      const index = draw(remaining);
-      rank = swaps.get(index) ?? index;
-      swaps.set(index, swaps.get(remaining - 1) ?? remaining - 1);
-    } else rank = draw(capacity);
+    const remaining = capacity - i;
+    const index = draw(remaining);
+    const rank = swaps.get(index) ?? index;
+    swaps.set(index, swaps.get(remaining - 1) ?? remaining - 1);
     return {
       reds: [...red.fixed, ...unrank(red.pool, red.needed, Math.floor(rank / blueCount))].sort((a, b) => a - b),
       blues: [...blue.fixed, ...unrank(blue.pool, blue.needed, rank % blueCount)].sort((a, b) => a - b),
@@ -425,31 +554,31 @@ export function generateRandomWithFixed(
   });
 }
 
-/** Weighted sampling without replacement; a small usage penalty spreads a batch. */
+/**
+ * Weighted sampling without replacement combining single-ball anti-popularity
+ * and combo-level pattern penalties (AC value, consecutive runs, tail clustering, all-birthday penalty).
+ */
 export function generateReverseBatch(
-  type: LotteryType, count: number, config: GameTheoryConfig,
-  history?: { reds: string; blues: string }[]
+  type: LotteryType,
+  count: number,
+  config: GameTheoryConfig = DEFAULT_GAME_THEORY_CONFIG
 ): { reds: number[]; blues: number[] }[] {
+  const fullConfig: GameTheoryConfig = { ...DEFAULT_GAME_THEORY_CONFIG, ...config };
   const maxRed = type === 'SSQ' ? 33 : 35;
   const maxBlue = type === 'SSQ' ? 16 : 12;
+  const reqRed = type === 'SSQ' ? 6 : 5;
+  const reqBlue = type === 'SSQ' ? 1 : 2;
   const redUsage = new Map<number, number>(), blueUsage = new Map<number, number>();
-  const frequencies = (key: 'reds' | 'blues', max: number) => {
-    const counts = Array(max + 1).fill(0) as number[];
-    history?.forEach(draw => draw[key].split(',').forEach(value => { counts[Number(value)]++; }));
-    return counts;
-  };
-  const redFreq = frequencies('reds', maxRed), blueFreq = frequencies('blues', maxBlue);
+
   const pick = (max: number, amount: number, usage: Map<number, number>, blue: boolean) => {
-    const frequency = blue ? blueFreq : redFreq;
-    const maxFreq = Math.max(1, ...frequency);
     const choices = Array.from({ length: max }, (_, i) => i + 1);
     const picked: number[] = [];
     while (picked.length < amount) {
       const weights = choices.map(n => {
-        let score: number;
-        if (history) score = 2 * frequency[n] / maxFreq;
-        else if (blue) score = (n <= 12 ? config.blueMonthPenalty : -config.blueLargeBonus) + ([6, 8].includes(n) ? 0.1 : 0);
-        else score = (n <= 12 ? config.monthPenalty : n <= 31 ? config.birthdayPenalty : -config.largeNumberBonus) + ([6, 8, 16, 18, 26, 28].includes(n) ? config.luckyPenalty : 0);
+        const score = blue
+          ? (n <= 12 ? fullConfig.blueMonthPenalty : -fullConfig.blueLargeBonus) + ([6, 8].includes(n) ? 0.1 : 0)
+          : (n <= 12 ? fullConfig.monthPenalty : n <= 31 ? fullConfig.birthdayPenalty : -fullConfig.largeNumberBonus) +
+            ([6, 8, 16, 18, 26, 28].includes(n) ? fullConfig.luckyPenalty : 0);
         return Math.exp(-2 * score) / (1 + 0.05 * (usage.get(n) || 0));
       });
       let threshold = Math.random() * weights.reduce((a, b) => a + b, 0);
@@ -459,13 +588,37 @@ export function generateReverseBatch(
     }
     return picked.sort((a, b) => a - b);
   };
+
   const results: { reds: number[]; blues: number[] }[] = [], seen = new Set<string>();
-  for (let attempts = 0; results.length < count && attempts < count * 100; attempts++) {
-    const reds = pick(maxRed, type === 'SSQ' ? 6 : 5, redUsage, false);
-    const blues = pick(maxBlue, type === 'SSQ' ? 1 : 2, blueUsage, true);
+  const pWeight = fullConfig.patternPenalty ?? 0.5;
+  const bWeight = fullConfig.allBirthdayPenalty ?? 0.5;
+
+  for (let attempts = 0; results.length < count && attempts < count * 150; attempts++) {
+    const reds = pick(maxRed, reqRed, redUsage, false);
+    const blues = pick(maxBlue, reqBlue, blueUsage, true);
     const key = `${reds}|${blues}`;
     if (seen.has(key)) continue;
-    seen.add(key); results.push({ reds, blues });
+
+    // Combo-level rejection sampling based on pattern & all-birthday crowding penalty
+    if (pWeight > 0 || bWeight > 0) {
+      const diag = evaluateCombinationCrowding(type, reds, blues, fullConfig);
+      const targetAC = type === 'SSQ' ? 7 : 4;
+      let comboPenalty = 0;
+      if (diag.acValue < targetAC) comboPenalty += (targetAC - diag.acValue) * 0.45 * pWeight;
+      if (diag.maxConsecutive >= 3) comboPenalty += (diag.maxConsecutive - 2) * 0.7 * pWeight;
+      else if (diag.maxConsecutive === 2) comboPenalty += 0.15 * pWeight;
+      if (diag.maxSameTail >= 3) comboPenalty += (diag.maxSameTail - 2) * 0.55 * pWeight;
+      if (diag.largeCount === 0) comboPenalty += 1.1 * bWeight;
+
+      const acceptProb = Math.exp(-1.5 * comboPenalty);
+      // Relax acceptance gradually if attempts are running high so batch size is still met
+      const progress = attempts / (count * 150);
+      const effectiveProb = acceptProb + (1 - acceptProb) * (progress * progress);
+      if (Math.random() > effectiveProb) continue;
+    }
+
+    seen.add(key);
+    results.push({ reds, blues });
     reds.forEach(n => redUsage.set(n, (redUsage.get(n) || 0) + 1));
     blues.forEach(n => blueUsage.set(n, (blueUsage.get(n) || 0) + 1));
   }

@@ -23,18 +23,35 @@ for (const extension of ['.ts', '.tsx']) {
 const Home = require('../src/app/page.tsx').default;
 const Reverse = require('../src/app/reverse/page.tsx').default;
 const { LotteryProvider } = require('../src/app/LotteryContext.tsx');
+const { evaluateCombinationCrowding, generateReverseBatch, DEFAULT_GAME_THEORY_CONFIG } = require('../src/lib/combinations.ts');
 
-test('home explains the two modes without promising a better outcome', () => {
+test('home explains anti-crowding assumptions without promising a better outcome', () => {
   const html = renderToStaticMarkup(React.createElement(Home));
-  assert.match(html, /历史低频不代表未来更容易开出/);
   assert.match(html, /未经真实投注数据验证/);
+  assert.match(html, /不保证减少撞注或提高收益/);
+  assert.match(html, /分奖影响与开奖概率是两回事/);
   assert.doesNotMatch(html, /提升独揽大奖概率/);
 });
 
-test('reverse analysis explains probability and prize sharing alongside results', () => {
+test('reverse analysis explains probability and prize sharing alongside combo-level parameters', () => {
   const html = renderToStaticMarkup(React.createElement(LotteryProvider, null, React.createElement(Reverse)));
   assert.match(html, /公平、独立开奖/);
   assert.match(html, /未经真实投注数据验证/);
   assert.match(html, /不保证减少撞注或提高收益/);
-  assert.match(html, /分奖[^<]*开奖概率/);
+  assert.match(html, /规律形态避让/);
+  assert.match(html, /纯生日票避让/);
+  assert.doesNotMatch(html, /历史低频/);
+});
+
+test('evaluateCombinationCrowding penalizes arithmetic/consecutive/birthday patterns and rewards large/high-AC combos', () => {
+  const crowded = evaluateCombinationCrowding('SSQ', [1, 2, 3, 4, 5, 6], [6], DEFAULT_GAME_THEORY_CONFIG);
+  const unpopular = evaluateCombinationCrowding('SSQ', [2, 13, 19, 27, 32, 33], [15], DEFAULT_GAME_THEORY_CONFIG);
+  assert.equal(crowded.acValue, 0);
+  assert.equal(crowded.largeCount, 0);
+  assert.ok(unpopular.acValue >= 8);
+  assert.equal(unpopular.largeCount, 2);
+  assert.ok(unpopular.coldnessScore > crowded.coldnessScore);
+
+  const batch = generateReverseBatch('SSQ', 10, DEFAULT_GAME_THEORY_CONFIG);
+  assert.equal(batch.length, 10);
 });

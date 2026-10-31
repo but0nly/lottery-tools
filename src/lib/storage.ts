@@ -1,10 +1,10 @@
-import { WheelingMode, FilterConditions } from './combinations';
+import { WheelingMode, FilterConditions, GameTheoryConfig } from './combinations';
 
 // Browser-based storage using IndexedDB
 const DB_NAME = 'LotteryToolsDB';
-const DB_VERSION = 5; // Updated to 5 for indexing
+const DB_VERSION = 5;
 const STORE_SAVED = 'saved_combinations';
-const STORE_SELECTION = 'cart_combinations'; 
+const STORE_SELECTION = 'cart_combinations';
 const STORE_SETTINGS = 'algorithm_settings';
 
 export interface LotteryRecord {
@@ -28,16 +28,7 @@ export interface ReducerSettings {
 
 export interface ReverseSettings {
   type: 'SSQ' | 'DLT';
-  mode: 'FREQUENCY' | 'GAME_THEORY';
-  historySize: number;
-  gtConfig: {
-    monthPenalty: number;
-    birthdayPenalty: number;
-    luckyPenalty: number;
-    largeNumberBonus: number;
-    blueMonthPenalty: number;
-    blueLargeBonus: number;
-  };
+  gtConfig: GameTheoryConfig;
 }
 
 export interface RandomSettings {
@@ -47,7 +38,6 @@ export interface RandomSettings {
   excludedReds?: number[];
   excludedBlues?: number[];
   betCount: number;
-  allowDuplicates?: boolean;
 }
 
 let dbInstance: IDBDatabase | null = null;
@@ -70,7 +60,7 @@ const openDB = (): Promise<IDBDatabase> => {
       if (!db.objectStoreNames.contains(STORE_SAVED)) {
         db.createObjectStore(STORE_SAVED, { keyPath: 'id', autoIncrement: true });
       }
-      
+
       let selectionStore: IDBObjectStore;
       if (!db.objectStoreNames.contains(STORE_SELECTION)) {
         selectionStore = db.createObjectStore(STORE_SELECTION, { keyPath: 'id', autoIncrement: true });
@@ -78,7 +68,6 @@ const openDB = (): Promise<IDBDatabase> => {
         selectionStore = (event.target as IDBOpenDBRequest).transaction!.objectStore(STORE_SELECTION);
       }
 
-      // Add indexes to STORE_SELECTION
       if (!selectionStore.indexNames.contains('idx_content')) {
         selectionStore.createIndex('idx_content', ['type', 'reds', 'blues'], { unique: false });
       }
@@ -90,24 +79,22 @@ const openDB = (): Promise<IDBDatabase> => {
         db.createObjectStore(STORE_SETTINGS, { keyPath: 'key' });
       }
 
-      // Migration from version 3 to 4: Move items from STORE_SAVED to STORE_SELECTION
       if (oldVersion < 4) {
         const transaction = (event.target as IDBOpenDBRequest).transaction!;
         const savedStore = transaction.objectStore(STORE_SAVED);
-        const selectionStore = transaction.objectStore(STORE_SELECTION);
+        const targetStore = transaction.objectStore(STORE_SELECTION);
 
         const getAllRequest = savedStore.getAll();
         getAllRequest.onsuccess = () => {
           const items = getAllRequest.result as LotteryRecord[];
           for (const item of items) {
-            delete item.id; // Let new store auto-increment
-            selectionStore.add({ 
-              ...item, 
-              isPinned: true, 
-              multiplier: 1 
+            delete item.id;
+            targetStore.add({
+              ...item,
+              isPinned: true,
+              multiplier: 1
             });
           }
-          // Optionally clear the old store
           savedStore.clear();
         };
       }
@@ -116,7 +103,6 @@ const openDB = (): Promise<IDBDatabase> => {
 };
 
 export const storage = {
-  // Settings (Algorithm Parameters)
   async getSettings<T>(key: string): Promise<T | null> {
     const db = await openDB();
     const transaction = db.transaction(STORE_SETTINGS, 'readonly');
@@ -139,29 +125,6 @@ export const storage = {
     });
   },
 
-  // Saved Combinations (Permanent - LEGACY, will be merged into Selection with isPinned=true)
-  async save(combination: Omit<LotteryRecord, 'id' | 'createdAt'>) {
-    return this.addToSelection({ ...combination, isPinned: true });
-  },
-
-  async getAllSaved(): Promise<LotteryRecord[]> {
-    const selection = await this.getSelection();
-    return selection.filter(item => item.isPinned);
-  },
-
-  async deleteSaved(id: number) {
-    return this.removeFromSelection(id);
-  },
-
-  async deleteSavedByContent(type: string, reds: string, blues: string) {
-    const items = await this.getSelection();
-    const item = items.find(i => i.isPinned && i.type === type && i.reds === reds && i.blues === blues);
-    if (item && item.id !== undefined) {
-      return this.removeFromSelection(item.id);
-    }
-  },
-
-  // Selection Logic (Unified store)
   async addToSelection(combination: Omit<LotteryRecord, 'id' | 'createdAt'>) {
     const db = await openDB();
     const transaction = db.transaction(STORE_SELECTION, 'readwrite');
@@ -170,7 +133,7 @@ export const storage = {
 
     return new Promise((resolve, reject) => {
       const getRequest = index.get([combination.type, combination.reds, combination.blues]);
-      
+
       getRequest.onsuccess = () => {
         const duplicate = getRequest.result as LotteryRecord;
         if (duplicate) {
@@ -185,8 +148,8 @@ export const storage = {
           return;
         }
 
-        const record = { 
-          ...combination, 
+        const record = {
+          ...combination,
           createdAt: Date.now(),
           multiplier: combination.multiplier || 1,
           isPinned: combination.isPinned || false
@@ -199,7 +162,6 @@ export const storage = {
     });
   },
 
-  // New: Batch Add to Selection
   async addBatchToSelection(combinations: Omit<LotteryRecord, 'id' | 'createdAt'>[]) {
     const db = await openDB();
     const transaction = db.transaction(STORE_SELECTION, 'readwrite');
@@ -207,8 +169,8 @@ export const storage = {
     const index = store.index('idx_content');
 
     let savedCount = 0;
-    
-    return new Promise<{saved: number, skipped: number}>((resolve, reject) => {
+
+    return new Promise<{ saved: number; skipped: number }>((resolve, reject) => {
       let processed = 0;
       let skipped = 0;
 
@@ -244,8 +206,8 @@ export const storage = {
               processNext();
             }
           } else {
-            const record = { 
-              ...combination, 
+            const record = {
+              ...combination,
               createdAt: Date.now(),
               multiplier: combination.multiplier || 1,
               isPinned: combination.isPinned || false
@@ -273,28 +235,18 @@ export const storage = {
     const index = store.index('idx_createdAt');
 
     return new Promise((resolve, reject) => {
-      // Use index to get results already sorted by createdAt descending
-      const request = index.getAll();
-      request.onsuccess = () => {
-        const results = request.result as LotteryRecord[];
-        // index.getAll() returns ascending by default if no range is specified.
-        // For descending, we can use a cursor, or just reverse the result if it's not too large.
-        // Actually IDBIndex.getAll() doesn't support direction.
-        // Let's use openCursor for real sorting.
-        const sortedResults: LotteryRecord[] = [];
-        const cursorRequest = index.openCursor(null, 'prev'); // 'prev' means descending
-        cursorRequest.onsuccess = (event) => {
-          const cursor = (event.target as IDBRequest<IDBCursorWithValue>).result;
-          if (cursor) {
-            sortedResults.push(cursor.value);
-            cursor.continue();
-          } else {
-            resolve(sortedResults);
-          }
-        };
-        cursorRequest.onerror = () => reject(cursorRequest.error);
+      const sortedResults: LotteryRecord[] = [];
+      const cursorRequest = index.openCursor(null, 'prev');
+      cursorRequest.onsuccess = (event) => {
+        const cursor = (event.target as IDBRequest<IDBCursorWithValue>).result;
+        if (cursor) {
+          sortedResults.push(cursor.value);
+          cursor.continue();
+        } else {
+          resolve(sortedResults);
+        }
       };
-      request.onerror = () => reject(request.error);
+      cursorRequest.onerror = () => reject(cursorRequest.error);
     });
   },
 
@@ -302,13 +254,13 @@ export const storage = {
     const db = await openDB();
     const transaction = db.transaction(STORE_SELECTION, 'readwrite');
     const store = transaction.objectStore(STORE_SELECTION);
-    
+
     return new Promise<void>((resolve, reject) => {
       const getRequest = store.get(id);
       getRequest.onsuccess = () => {
         const data = getRequest.result;
         if (!data) return reject(new Error('Record not found'));
-        
+
         const updated = { ...data, ...updates };
         const putRequest = store.put(updated);
         putRequest.onsuccess = () => resolve();
@@ -360,23 +312,6 @@ export const storage = {
       request.onsuccess = () => resolve();
       request.onerror = () => reject(request.error);
     });
-  },
-
-  // Backwards Compatibility / Legacy methods
-  async addToCart(combination: Omit<LotteryRecord, 'id' | 'createdAt'>) {
-    return this.addToSelection(combination);
-  },
-  async getCart() {
-    return this.getSelection();
-  },
-  async removeFromCart(id: number) {
-    return this.removeFromSelection(id);
-  },
-  async removeFromCartByContent(type: string, reds: string, blues: string) {
-    return this.removeFromSelectionByContent(type, reds, blues);
-  },
-  async clearCart() {
-    return this.clearSelection();
   }
 };
 

@@ -2,13 +2,27 @@
 
 import { useEffect, useState, useCallback, useRef, useLayoutEffect } from 'react';
 import { BallPicker } from '@/components/BallPicker';
-import { FilterConditions, WheelingMode, filterCombination, getCoverage, getWheelingModes, getCombinationEstimate } from '@/lib/combinations';
+import {
+  CoverageTierBreakdown,
+  FilterConditions,
+  WheelingMode,
+  calculateAC,
+  filterCombination,
+  getCoverage,
+  getWheelingModes,
+  getCombinationEstimate
+} from '@/lib/combinations';
 import { storage, ReducerSettings, SavedCombination } from '@/lib/storage';
 import { toast } from '@/lib/notification';
 import { CheckCircle2, Loader2, Plus, Shuffle, HelpCircle, Info, Calculator, Trash2 } from 'lucide-react';
 import { useLotteryContext } from '@/app/LotteryContext';
 
 import { triggerFlyToCart } from '@/components/FlyToCartAnimation';
+
+const ODD_EVEN_OPTIONS: Record<'SSQ' | 'DLT', [number, number][]> = {
+  SSQ: [[3, 3], [4, 2], [2, 4], [5, 1], [1, 5], [6, 0], [0, 6]],
+  DLT: [[3, 2], [2, 3], [4, 1], [1, 4], [5, 0], [0, 5]],
+};
 
 export default function ReducerPage() {
   const { activeType: type } = useLotteryContext();
@@ -20,8 +34,9 @@ export default function ReducerPage() {
   const [wheelingMode, setWheelingMode] = useState<WheelingMode>('FULL');
   const [reds, setReds] = useState<number[]>([]);
   const [blues, setBlues] = useState<number[]>([]);
-  const [results, setResults] = useState<{reds: number[], blues: number[]}[]>([]);
+  const [results, setResults] = useState<{ reds: number[]; blues: number[] }[]>([]);
   const [coverage, setCoverage] = useState<ReturnType<typeof getCoverage> | null>(null);
+  const [breakdown, setBreakdown] = useState<CoverageTierBreakdown[] | null>(null);
   const workerRef = useRef<Worker | null>(null);
   const [progress, setProgress] = useState<number | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -31,6 +46,34 @@ export default function ReducerPage() {
 
   // Track existing data for active states
   const [inSelectionKeys, setInSelectionKeys] = useState<Set<string>>(new Set());
+
+  const [conditions, setConditions] = useState<FilterConditions>({
+    minSum: undefined,
+    maxSum: undefined,
+    maxConsecutive: undefined,
+    oddEvenRatio: undefined,
+    minAC: undefined,
+    maxAC: undefined,
+  });
+
+  const handleClear = useCallback(() => {
+    setImportIds(new Set());
+    setDiscarded([]);
+    setImportResultCount(null);
+    setReds([]);
+    setBlues([]);
+    setCoverage(null);
+    setBreakdown(null);
+    setResults([]);
+    setConditions({
+      minSum: undefined,
+      maxSum: undefined,
+      maxConsecutive: undefined,
+      oddEvenRatio: undefined,
+      minAC: undefined,
+      maxAC: undefined,
+    });
+  }, []);
 
   const loadExistingStates = useCallback(async () => {
     const [selection, settings] = await Promise.all([
@@ -50,23 +93,18 @@ export default function ReducerPage() {
       handleClear();
     }
     setIsInitialized(true);
-  }, [type]);
+  }, [type, handleClear]);
 
   // Reset a previous import when the active lottery changes.
   // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { setImportIds(new Set()); setDiscarded([]); setImportResultCount(null); setResults([]); setCoverage(null); setWheelingMode('FULL'); }, [type]);
+  useEffect(() => { setImportIds(new Set()); setDiscarded([]); setImportResultCount(null); setResults([]); setCoverage(null); setBreakdown(null); setWheelingMode('FULL'); }, [type]);
 
   useEffect(() => {
-    loadExistingStates();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void loadExistingStates();
     window.addEventListener('selection-updated', loadExistingStates);
     return () => window.removeEventListener('selection-updated', loadExistingStates);
   }, [loadExistingStates]);
-
-  const [conditions, setConditions] = useState<FilterConditions>({
-    minSum: undefined,
-    maxSum: undefined,
-    maxConsecutive: undefined,
-  });
 
   // Save settings when they change
   useEffect(() => {
@@ -99,24 +137,41 @@ export default function ReducerPage() {
   };
 
   const activeMode = getWheelingModes(type).some(mode => mode.id === wheelingMode) ? wheelingMode : 'FULL';
-  const estimate = getCombinationEstimate(type, reds.filter(n => n <= (type === 'SSQ' ? 33 : 35)).length, blues.filter(n => n <= (type === 'SSQ' ? 16 : 12)).length, activeMode);
+  const estimate = getCombinationEstimate(
+    type,
+    reds.filter(n => n <= (type === 'SSQ' ? 33 : 35)).length,
+    blues.filter(n => n <= (type === 'SSQ' ? 16 : 12)).length,
+    activeMode
+  );
+
+  const buildCleanedConditions = (): FilterConditions => {
+    const cleaned: FilterConditions = {};
+    if (conditions.minSum !== undefined && !Number.isNaN(conditions.minSum) && conditions.minSum > 0) cleaned.minSum = conditions.minSum;
+    if (conditions.maxSum !== undefined && !Number.isNaN(conditions.maxSum) && conditions.maxSum > 0) cleaned.maxSum = conditions.maxSum;
+    if (conditions.maxConsecutive !== undefined && !Number.isNaN(conditions.maxConsecutive) && conditions.maxConsecutive > 0) cleaned.maxConsecutive = conditions.maxConsecutive;
+    if (conditions.oddEvenRatio && conditions.oddEvenRatio[0] + conditions.oddEvenRatio[1] === (type === 'SSQ' ? 6 : 5)) {
+      cleaned.oddEvenRatio = conditions.oddEvenRatio;
+    }
+    if (conditions.minAC !== undefined && !Number.isNaN(conditions.minAC) && conditions.minAC >= 0) cleaned.minAC = conditions.minAC;
+    if (conditions.maxAC !== undefined && !Number.isNaN(conditions.maxAC) && conditions.maxAC >= 0) cleaned.maxAC = conditions.maxAC;
+    return cleaned;
+  };
 
   const handleGenerate = () => {
+    const cleanedConditions = buildCleanedConditions();
+
     if (importMode) {
       const selected = available.filter(r => importIds.has(r.id!));
       if (!selected.length) { toast.show('请先选择要导入的号码', 'warning'); return; }
       if (selected.length > 500) { toast.show('输出上限为 500 注，请减少导入号码。', 'warning'); return; }
-      const cleaned: FilterConditions = {};
-      if (conditions.minSum && conditions.minSum > 0) cleaned.minSum = conditions.minSum;
-      if (conditions.maxSum && conditions.maxSum > 0) cleaned.maxSum = conditions.maxSum;
-      if (conditions.maxConsecutive && conditions.maxConsecutive > 0) cleaned.maxConsecutive = conditions.maxConsecutive;
-      const keep = selected.filter(r => filterCombination(r.reds.split(',').map(Number).sort((a,b) => a-b), cleaned));
+      const keep = selected.filter(r => filterCombination(r.reds.split(',').map(Number).sort((a, b) => a - b), cleanedConditions));
       setDiscarded(selected.filter(r => !keep.includes(r)));
       setImportResultCount(selected.length);
       setResults(keep.map(r => ({ reds: r.reds.split(',').map(Number), blues: r.blues.split(',').map(Number) })));
-      if (!Object.keys(cleaned).length) toast.show('未设置筛选条件，已保留全部号码', 'info');
+      if (!Object.keys(cleanedConditions).length) toast.show('未设置筛选条件，已保留全部号码', 'info');
       return;
     }
+
     const minRed = type === 'SSQ' ? 6 : 5;
     const minBlue = type === 'SSQ' ? 1 : 2;
     if (reds.length < minRed || blues.length < minBlue) {
@@ -126,34 +181,31 @@ export default function ReducerPage() {
 
     if (!estimate.allowed) { toast.show(estimate.reason!, 'warning'); return; }
 
-    const cleanedConditions: FilterConditions = {};
-    if (conditions.minSum && conditions.minSum > 0) cleanedConditions.minSum = conditions.minSum;
-    if (conditions.maxSum && conditions.maxSum > 0) cleanedConditions.maxSum = conditions.maxSum;
-    if (conditions.maxConsecutive && conditions.maxConsecutive > 0) cleanedConditions.maxConsecutive = conditions.maxConsecutive;
-
     setResults([]);
     setCoverage(null);
+    setBreakdown(null);
     setIsGenerating(true);
     setProgress(0);
     try {
       const worker = new Worker(new URL('../../lib/reducer.worker.ts', import.meta.url));
       workerRef.current = worker;
-      const fail = () => {
+      const fail = (msg?: string) => {
         if (workerRef.current !== worker) return;
         cancelGeneration();
-        toast.show('计算过程中出错，请尝试减少号码数量。', 'error');
+        toast.show(msg || '计算过程中出错，请尝试减少号码数量。', 'error');
       };
-      worker.onerror = fail;
-      worker.onmessageerror = fail;
+      worker.onerror = () => fail();
+      worker.onmessageerror = () => fail();
       worker.onmessage = (event) => {
         if (workerRef.current !== worker) return;
         const message = event.data;
         if (message.kind === 'progress') setProgress(message.fraction);
         else if (message.kind === 'coverage') setProgress(1);
-        else if (message.kind === 'error') fail();
+        else if (message.kind === 'error') fail(message.message);
         else if (message.kind === 'complete') {
           setResults(message.results);
           setCoverage(message.coverage);
+          setBreakdown(message.breakdown ?? null);
           cancelGeneration();
           toast.show(message.results.length ? `已生成 ${message.results.length} 注缩水方案` : '没有符合条件的号码', message.results.length ? 'success' : 'warning');
         }
@@ -167,7 +219,7 @@ export default function ReducerPage() {
 
   const handleAddToSelectionAll = async (e: React.MouseEvent) => {
     triggerFlyToCart(e, 'bg-emerald-500');
-    
+
     const batch = results.map(r => ({
       type,
       reds: r.reds.map(n => n.toString().padStart(2, '0')).join(','),
@@ -176,7 +228,7 @@ export default function ReducerPage() {
     }));
 
     const { saved, skipped } = await storage.addBatchToSelection(batch);
-    
+
     window.dispatchEvent(new Event('selection-updated'));
     if (saved > 0) {
       toast.show(`成功加入 ${saved} 注选号${skipped > 0 ? ` (跳过 ${skipped} 注重复)` : ''}`, 'success');
@@ -189,9 +241,8 @@ export default function ReducerPage() {
     const maxRed = type === 'SSQ' ? 33 : 35;
     const maxBlue = type === 'SSQ' ? 16 : 12;
 
-    // Pick the minimum required pool size as requested
-    const redCount = type === 'SSQ' ? 7 : 6; 
-    const blueCount = 2; 
+    const redCount = type === 'SSQ' ? 8 : 7;
+    const blueCount = 2;
 
     const randomReds: number[] = [];
     while (randomReds.length < redCount) {
@@ -209,20 +260,18 @@ export default function ReducerPage() {
     setBlues(randomBlues.sort((a, b) => a - b));
     setResults([]);
     setCoverage(null);
+    setBreakdown(null);
   };
 
-  const handleClear = () => {
-    setImportIds(new Set()); setDiscarded([]); setImportResultCount(null);
-    setReds([]);
-    setBlues([]);
-    setCoverage(null);
+  const resetOutputs = () => {
+    setImportResultCount(null);
+    setDiscarded([]);
     setResults([]);
-    setConditions({
-      minSum: undefined,
-      maxSum: undefined,
-      maxConsecutive: undefined,
-    });
+    setCoverage(null);
+    setBreakdown(null);
   };
+
+  const maxACLimit = type === 'SSQ' ? 10 : 6;
 
   return (
     <div className="relative min-h-full p-4 md:p-8 max-w-7xl mx-auto pb-32 md:pb-8 overflow-hidden">
@@ -237,130 +286,169 @@ export default function ReducerPage() {
             </div>
             组合缩水选号
           </h1>
-          <p className="text-slate-500 text-sm md:text-base ml-1">通过旋转矩阵算法降低购彩成本</p>
+          <p className="text-slate-500 text-sm md:text-base ml-1">通过位运算旋转矩阵与多维统计特征过滤降低购彩成本</p>
         </div>
       </div>
 
       <div className="grid lg:grid-cols-2 gap-6 md:gap-8 min-w-0">
         <div className="space-y-6 min-w-0">
           <div className="flex w-full p-1.5 rounded-2xl bg-slate-100/50 border border-slate-200/50">
-            {([false, true] as const).map(value => <button key={String(value)} onClick={() => { setImportMode(value); setResults([]); setCoverage(null); setDiscarded([]); setImportResultCount(null); }} className={`flex-1 min-h-11 rounded-xl text-sm font-black transition-all ${importMode === value ? 'bg-white text-emerald-600 shadow-md ring-1 ring-slate-200' : 'text-slate-500'}`}>{value ? '从选号单导入' : '手动号码池'}</button>)}
+            {([false, true] as const).map(value => (
+              <button
+                key={String(value)}
+                onClick={() => { setImportMode(value); resetOutputs(); }}
+                className={`flex-1 min-h-11 rounded-xl text-sm font-black transition-all ${importMode === value ? 'bg-white text-emerald-600 shadow-md ring-1 ring-slate-200' : 'text-slate-500'}`}
+              >
+                {value ? '从选号单导入' : '手动号码池'}
+              </button>
+            ))}
           </div>
-          {importMode ? <div className="bg-white/70 backdrop-blur-xl p-4 sm:p-6 rounded-[32px] shadow-xl shadow-slate-200/50 border border-white">
-            <div className="flex items-center justify-between gap-3 mb-2">
-              <h3 className="text-lg font-bold flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />选择已有号码</h3>
-              <button disabled={!available.length} onClick={() => { setImportIds(importIds.size === available.length ? new Set() : new Set(available.map(r => r.id!))); setImportResultCount(null); setDiscarded([]); setResults([]); }} className="min-h-11 px-3 rounded-xl text-xs font-black text-emerald-600 bg-emerald-50 disabled:opacity-40">{available.length > 0 && importIds.size === available.length ? '取消全选' : '全选'}</button>
-            </div>
-            <p className="text-xs text-slate-400 font-medium mb-4">轻点号码选择 · 已选 {importIds.size} / {available.length} 注</p>
-            {available.length === 0 ? <div className="rounded-2xl bg-slate-50/70 py-10 text-center text-sm text-slate-400 font-bold">当前彩种的选号单还是空的</div> :
-              <div className="max-h-[360px] overflow-y-auto space-y-2 pr-1">{available.map((r, index) => {
-                const selected = importIds.has(r.id!);
-                return <button key={r.id} type="button" aria-pressed={selected} aria-label={`第${index + 1}注 ${r.reds} 加 ${r.blues}`} onClick={() => { setImportIds(prev => { const next = new Set(prev); if (next.has(r.id!)) next.delete(r.id!); else next.add(r.id!); return next; }); setImportResultCount(null); setDiscarded([]); setResults([]); }} className={`w-full flex items-center gap-2 p-3 min-h-14 rounded-2xl border-2 transition-all active:scale-[0.99] ${selected ? 'border-emerald-400 bg-emerald-50/70 shadow-sm' : 'border-transparent bg-slate-50/70'}`}>
-                  <span className={`w-5 h-5 flex-shrink-0 rounded-full flex items-center justify-center ${selected ? 'text-emerald-500' : 'text-slate-300'}`}><CheckCircle2 className="w-5 h-5" /></span>
-                  <span className="flex gap-1 sm:gap-1.5 items-center min-w-0 overflow-x-auto no-scrollbar">
-                    {r.reds.split(',').map(n => <span key={`r${n}`} className="w-7 h-7 rounded-full bg-red-500 text-white flex-shrink-0 flex items-center justify-center text-[10px] font-black shadow-sm">{n}</span>)}
-                    <span className="w-px h-5 bg-slate-200 mx-0.5 flex-shrink-0" />
-                    {r.blues.split(',').map(n => <span key={`b${n}`} className="w-7 h-7 rounded-full bg-blue-500 text-white flex-shrink-0 flex items-center justify-center text-[10px] font-black shadow-sm">{n}</span>)}
-                  </span>
-                </button>;
-              })}</div>}
-          </div> : <>
-          <div className="bg-white/70 backdrop-blur-xl p-6 rounded-[32px] shadow-xl shadow-slate-200/50 border border-white">
-            <h3 className="text-lg font-bold mb-6 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]"></span>
-                选择红球池 <span className="text-slate-400 font-medium ml-1">({reds.length}个)</span>
-              </div>
-
-            </h3>
-            <BallPicker 
-              max={type === 'SSQ' ? 33 : 35} 
-              selected={reds} 
-              onChange={value => { setReds(value); setResults([]); setCoverage(null); }} 
-              color="red" 
-            />
-          </div>
-
-          <div className="bg-white/70 backdrop-blur-xl p-6 rounded-[32px] shadow-xl shadow-slate-200/50 border border-white">
-            <h3 className="text-lg font-bold mb-6 flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]"></span>
-              选择蓝球池 <span className="text-slate-400 font-medium ml-1">({blues.length}个)</span>
-            </h3>
-            <BallPicker 
-              max={type === 'SSQ' ? 16 : 12} 
-              selected={blues} 
-              onChange={value => { setBlues(value); setResults([]); setCoverage(null); }} 
-              color="blue" 
-            />
-          </div>
-
-          <div className="flex gap-4">
-            <button 
-              onClick={handleRandomPick}
-              className="flex-1 flex items-center justify-center gap-2 px-5 py-4 bg-white/70 backdrop-blur-xl hover:bg-emerald-50 border border-white hover:border-emerald-200 text-slate-600 hover:text-emerald-600 rounded-[24px] text-sm font-black transition-all shadow-xl shadow-slate-200/50 active:scale-[0.98]"
-            >
-              <Shuffle className="w-4 h-4" />
-              随机选号池
-            </button>
-            <button 
-              onClick={handleClear}
-              className="flex-1 flex items-center justify-center gap-2 px-5 py-4 bg-white/70 backdrop-blur-xl hover:bg-rose-50 border border-white hover:border-rose-200 text-slate-600 hover:text-rose-600 rounded-[24px] text-sm font-black transition-all shadow-xl shadow-slate-200/50 active:scale-[0.98]"
-            >
-              <Trash2 className="w-4 h-4" />
-              清空重选
-            </button>
-          </div>
-
-          <div className="bg-white/70 backdrop-blur-xl p-6 rounded-[32px] shadow-xl shadow-slate-200/50 border border-white">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-lg font-bold flex items-center gap-2">
-                缩水模式 
-                <button 
-                  onClick={() => setShowWheelingTip(!showWheelingTip)}
-                  className={`p-1.5 rounded-full transition-colors ${showWheelingTip ? 'bg-emerald-100 text-emerald-600' : 'text-slate-300 hover:text-slate-400 hover:bg-slate-100'}`}
-                >
-                  <HelpCircle className="w-4 h-4" />
-                </button>
-              </h3>
-            </div>
-            {showWheelingTip && (
-              <div className="text-[11px] md:text-xs text-emerald-800 mb-6 bg-emerald-50/80 p-4 rounded-2xl border border-emerald-100 flex items-start gap-2 animate-in fade-in slide-in-from-top-2 duration-300 leading-relaxed shadow-inner">
-                <Info className="w-4 h-4 mt-0.5 flex-shrink-0 text-emerald-500" />
-                覆盖的前提是所选号码池包含指定数量的开奖号码；仅计算双色球红球或大乐透前区，不涉及蓝球或后区。不保证奖级、奖金或最少注数。过滤可能破坏覆盖，请以生成后的覆盖结果为准。
-              </div>
-            )}
-            <div className="grid grid-cols-2 gap-3">
-              {getWheelingModes(type).map((mode) => (
+          {importMode ? (
+            <div className="bg-white/70 backdrop-blur-xl p-4 sm:p-6 rounded-[32px] shadow-xl shadow-slate-200/50 border border-white">
+              <div className="flex items-center justify-between gap-3 mb-2">
+                <h3 className="text-lg font-bold flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />选择已有号码</h3>
                 <button
-                  key={mode.id}
-                  onClick={() => { setWheelingMode(mode.id); setResults([]); setCoverage(null); }}
-                  aria-pressed={wheelingMode === mode.id}
-                  className={`group relative p-4 rounded-2xl border-2 text-left transition-all ${
-                    wheelingMode === mode.id
-                      ? 'border-emerald-500 bg-emerald-50 shadow-md shadow-emerald-100/50'
-                      : 'border-slate-100 hover:border-slate-200 bg-slate-50/50'
-                  }`}
+                  disabled={!available.length}
+                  onClick={() => { setImportIds(importIds.size === available.length ? new Set() : new Set(available.map(r => r.id!))); resetOutputs(); }}
+                  className="min-h-11 px-3 rounded-xl text-xs font-black text-emerald-600 bg-emerald-50 disabled:opacity-40"
                 >
-                  <div className={`font-black text-sm ${wheelingMode === mode.id ? 'text-emerald-700' : 'text-slate-700'}`}>
-                    {mode.name}
-                  </div>
-                  <div className="text-[10px] md:text-xs text-slate-400 mt-1 font-medium">{mode.desc}</div>
-                  {wheelingMode === mode.id && (
-                    <div className="absolute top-3 right-3">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                    </div>
-                  )}
+                  {available.length > 0 && importIds.size === available.length ? '取消全选' : '全选'}
                 </button>
-              ))}
+              </div>
+              <p className="text-xs text-slate-400 font-medium mb-4">轻点号码选择 · 已选 {importIds.size} / {available.length} 注</p>
+              {available.length === 0 ? (
+                <div className="rounded-2xl bg-slate-50/70 py-10 text-center text-sm text-slate-400 font-bold">当前彩种的选号单还是空的</div>
+              ) : (
+                <div className="max-h-[360px] overflow-y-auto space-y-2 pr-1">
+                  {available.map((r, index) => {
+                    const selected = importIds.has(r.id!);
+                    return (
+                      <button
+                        key={r.id}
+                        type="button"
+                        aria-pressed={selected}
+                        aria-label={`第${index + 1}注 ${r.reds} 加 ${r.blues}`}
+                        onClick={() => {
+                          setImportIds(prev => {
+                            const next = new Set(prev);
+                            if (next.has(r.id!)) next.delete(r.id!);
+                            else next.add(r.id!);
+                            return next;
+                          });
+                          resetOutputs();
+                        }}
+                        className={`w-full flex items-center gap-2 p-3 min-h-14 rounded-2xl border-2 transition-all active:scale-[0.99] ${selected ? 'border-emerald-400 bg-emerald-50/70 shadow-sm' : 'border-transparent bg-slate-50/70'}`}
+                      >
+                        <span className={`w-5 h-5 flex-shrink-0 rounded-full flex items-center justify-center ${selected ? 'text-emerald-500' : 'text-slate-300'}`}><CheckCircle2 className="w-5 h-5" /></span>
+                        <span className="flex gap-1 sm:gap-1.5 items-center min-w-0 overflow-x-auto no-scrollbar">
+                          {r.reds.split(',').map(n => <span key={`r${n}`} className="w-7 h-7 rounded-full bg-red-500 text-white flex-shrink-0 flex items-center justify-center text-[10px] font-black shadow-sm">{n}</span>)}
+                          <span className="w-px h-5 bg-slate-200 mx-0.5 flex-shrink-0" />
+                          {r.blues.split(',').map(n => <span key={`b${n}`} className="w-7 h-7 rounded-full bg-blue-500 text-white flex-shrink-0 flex items-center justify-center text-[10px] font-black shadow-sm">{n}</span>)}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
-          </div>
+          ) : (
+            <>
+              <div className="bg-white/70 backdrop-blur-xl p-6 rounded-[32px] shadow-xl shadow-slate-200/50 border border-white">
+                <h3 className="text-lg font-bold mb-6 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]"></span>
+                    选择红球池 <span className="text-slate-400 font-medium ml-1">({reds.length}个)</span>
+                  </div>
+                </h3>
+                <BallPicker
+                  max={type === 'SSQ' ? 33 : 35}
+                  selected={reds}
+                  onChange={value => { setReds(value); resetOutputs(); }}
+                  color="red"
+                />
+              </div>
 
-          </>}
+              <div className="bg-white/70 backdrop-blur-xl p-6 rounded-[32px] shadow-xl shadow-slate-200/50 border border-white">
+                <h3 className="text-lg font-bold mb-6 flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]"></span>
+                  选择蓝球池 <span className="text-slate-400 font-medium ml-1">({blues.length}个)</span>
+                </h3>
+                <BallPicker
+                  max={type === 'SSQ' ? 16 : 12}
+                  selected={blues}
+                  onChange={value => { setBlues(value); resetOutputs(); }}
+                  color="blue"
+                />
+              </div>
+
+              <div className="flex gap-4">
+                <button
+                  onClick={handleRandomPick}
+                  className="flex-1 flex items-center justify-center gap-2 px-5 py-4 bg-white/70 backdrop-blur-xl hover:bg-emerald-50 border border-white hover:border-emerald-200 text-slate-600 hover:text-emerald-600 rounded-[24px] text-sm font-black transition-all shadow-xl shadow-slate-200/50 active:scale-[0.98]"
+                >
+                  <Shuffle className="w-4 h-4" />
+                  随机选号池
+                </button>
+                <button
+                  onClick={handleClear}
+                  className="flex-1 flex items-center justify-center gap-2 px-5 py-4 bg-white/70 backdrop-blur-xl hover:bg-rose-50 border border-white hover:border-rose-200 text-slate-600 hover:text-rose-600 rounded-[24px] text-sm font-black transition-all shadow-xl shadow-slate-200/50 active:scale-[0.98]"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  清空重选
+                </button>
+              </div>
+
+              <div className="bg-white/70 backdrop-blur-xl p-6 rounded-[32px] shadow-xl shadow-slate-200/50 border border-white">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-lg font-bold flex items-center gap-2">
+                    缩水模式
+                    <button
+                      onClick={() => setShowWheelingTip(!showWheelingTip)}
+                      className={`p-1.5 rounded-full transition-colors ${showWheelingTip ? 'bg-emerald-100 text-emerald-600' : 'text-slate-300 hover:text-slate-400 hover:bg-slate-100'}`}
+                    >
+                      <HelpCircle className="w-4 h-4" />
+                    </button>
+                  </h3>
+                </div>
+                {showWheelingTip && (
+                  <div className="text-[11px] md:text-xs text-emerald-800 mb-6 bg-emerald-50/80 p-4 rounded-2xl border border-emerald-100 flex items-start gap-2 animate-in fade-in slide-in-from-top-2 duration-300 leading-relaxed shadow-inner">
+                    <Info className="w-4 h-4 mt-0.5 flex-shrink-0 text-emerald-500" />
+                    覆盖的前提是所选号码池包含指定数量的开奖号码；仅计算双色球红球或大乐透前区，不涉及蓝球或后区。系统会在满足过滤条件的合法候选注中执行位运算贪心覆盖，尽可能保持最高覆盖率。
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-3">
+                  {getWheelingModes(type).map((mode) => (
+                    <button
+                      key={mode.id}
+                      onClick={() => { setWheelingMode(mode.id); resetOutputs(); }}
+                      aria-pressed={wheelingMode === mode.id}
+                      className={`group relative p-4 rounded-2xl border-2 text-left transition-all ${
+                        wheelingMode === mode.id
+                          ? 'border-emerald-500 bg-emerald-50 shadow-md shadow-emerald-100/50'
+                          : 'border-slate-100 hover:border-slate-200 bg-slate-50/50'
+                      }`}
+                    >
+                      <div className={`font-black text-sm ${wheelingMode === mode.id ? 'text-emerald-700' : 'text-slate-700'}`}>
+                        {mode.name}
+                      </div>
+                      <div className="text-[10px] md:text-xs text-slate-400 mt-1 font-medium">{mode.desc}</div>
+                      {wheelingMode === mode.id && (
+                        <div className="absolute top-3 right-3">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                        </div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+
           <div className="bg-white/70 backdrop-blur-xl p-6 rounded-[32px] shadow-xl shadow-slate-200/50 border border-white">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-lg font-bold flex items-center gap-2">
                 高级过滤 <span className="text-slate-400 text-xs font-normal">(可选)</span>
-                <button 
+                <button
                   onClick={() => setShowFilterTip(!showFilterTip)}
                   className={`p-1.5 rounded-full transition-colors ${showFilterTip ? 'bg-emerald-100 text-emerald-600' : 'text-slate-300 hover:text-slate-400 hover:bg-slate-100'}`}
                 >
@@ -371,55 +459,124 @@ export default function ReducerPage() {
             {showFilterTip && (
               <div className="text-[11px] md:text-xs text-emerald-800 mb-6 bg-emerald-50/80 p-4 rounded-2xl border border-emerald-100 flex items-start gap-2 animate-in fade-in slide-in-from-top-2 duration-300 leading-relaxed shadow-inner">
                 <Info className="w-4 h-4 mt-0.5 flex-shrink-0 text-emerald-500" />
-                和值指选出的红球之和；连号指连续数字。设置条件可按号码特征筛选组合，不代表其中奖概率更高。
+                和值指选出的红球之和；连号指连续数字；奇偶比指奇数与偶数个数之比；AC值（算术复杂度）衡量号码两两差值的离散度（双色球 0–10，大乐透 0–6，规律号通常偏低）。设置条件可按号码特征筛选组合，不代表其中奖概率更高。
               </div>
             )}
             <div className="grid grid-cols-2 gap-5">
               <div className="relative">
                 <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-[0.1em]">最小和值</label>
-                <input 
-                  type="number" 
-                  value={conditions.minSum || ''} 
-                  onChange={e => { setConditions({...conditions, minSum: parseInt(e.target.value)}); setImportResultCount(null); setDiscarded([]); setResults([]); setCoverage(null); }}
+                <input
+                  type="number"
+                  value={conditions.minSum ?? ''}
+                  onChange={e => { setConditions({ ...conditions, minSum: e.target.value ? parseInt(e.target.value) : undefined }); resetOutputs(); }}
                   className="w-full bg-slate-50/50 border-2 border-slate-100 rounded-xl px-4 py-3 text-sm font-bold focus:border-emerald-500 focus:bg-white outline-none transition-all shadow-inner"
                   placeholder="例: 80"
                 />
               </div>
               <div className="relative">
                 <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-[0.1em]">最大和值</label>
-                <input 
-                  type="number" 
-                  value={conditions.maxSum || ''} 
-                  onChange={e => { setConditions({...conditions, maxSum: parseInt(e.target.value)}); setImportResultCount(null); setDiscarded([]); setResults([]); setCoverage(null); }}
+                <input
+                  type="number"
+                  value={conditions.maxSum ?? ''}
+                  onChange={e => { setConditions({ ...conditions, maxSum: e.target.value ? parseInt(e.target.value) : undefined }); resetOutputs(); }}
                   className="w-full bg-slate-50/50 border-2 border-slate-100 rounded-xl px-4 py-3 text-sm font-bold focus:border-emerald-500 focus:bg-white outline-none transition-all shadow-inner"
                   placeholder="例: 130"
                 />
               </div>
+              <div className="relative">
+                <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-[0.1em]">最小 AC 值 (0–{maxACLimit})</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={maxACLimit}
+                  value={conditions.minAC ?? ''}
+                  onChange={e => { setConditions({ ...conditions, minAC: e.target.value !== '' ? parseInt(e.target.value) : undefined }); resetOutputs(); }}
+                  className="w-full bg-slate-50/50 border-2 border-slate-100 rounded-xl px-4 py-3 text-sm font-bold focus:border-emerald-500 focus:bg-white outline-none transition-all shadow-inner"
+                  placeholder={type === 'SSQ' ? '例: 6' : '例: 4'}
+                />
+              </div>
+              <div className="relative">
+                <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-[0.1em]">最大 AC 值 (0–{maxACLimit})</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={maxACLimit}
+                  value={conditions.maxAC ?? ''}
+                  onChange={e => { setConditions({ ...conditions, maxAC: e.target.value !== '' ? parseInt(e.target.value) : undefined }); resetOutputs(); }}
+                  className="w-full bg-slate-50/50 border-2 border-slate-100 rounded-xl px-4 py-3 text-sm font-bold focus:border-emerald-500 focus:bg-white outline-none transition-all shadow-inner"
+                  placeholder={`例: ${maxACLimit}`}
+                />
+              </div>
               <div className="col-span-2 relative">
-                <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-[0.1em]">最大连号数</label>
-                <input 
-                  type="number" 
-                  value={conditions.maxConsecutive || ''} 
-                  onChange={e => { setConditions({...conditions, maxConsecutive: parseInt(e.target.value)}); setImportResultCount(null); setDiscarded([]); setResults([]); setCoverage(null); }}
-                  placeholder="例如 3 表示最多允许3连号"
+                <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-[0.1em]">排除连号阈值</label>
+                <input
+                  type="number"
+                  value={conditions.maxConsecutive ?? ''}
+                  onChange={e => { setConditions({ ...conditions, maxConsecutive: e.target.value ? parseInt(e.target.value) : undefined }); resetOutputs(); }}
+                  placeholder="例如填 3 表示排除含3连号及以上的组合"
                   className="w-full bg-slate-50/50 border-2 border-slate-100 rounded-xl px-4 py-3 text-sm font-bold focus:border-emerald-500 focus:bg-white outline-none transition-all shadow-inner"
                 />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-[0.1em]">奇偶比（奇:偶）</label>
+                <div className="flex flex-wrap gap-2" role="group" aria-label="奇偶比筛选">
+                  <button
+                    type="button"
+                    aria-pressed={!conditions.oddEvenRatio}
+                    onClick={() => { setConditions({ ...conditions, oddEvenRatio: undefined }); resetOutputs(); }}
+                    className={`min-h-10 px-3.5 rounded-xl border-2 text-xs font-black transition-all ${
+                      !conditions.oddEvenRatio
+                        ? 'border-emerald-500 bg-emerald-50 text-emerald-700 shadow-sm'
+                        : 'border-slate-100 bg-slate-50/50 text-slate-600 hover:border-slate-200'
+                    }`}
+                  >
+                    不限
+                  </button>
+                  {ODD_EVEN_OPTIONS[type].map(([odd, even]) => {
+                    const active = conditions.oddEvenRatio?.[0] === odd && conditions.oddEvenRatio?.[1] === even;
+                    return (
+                      <button
+                        key={`${odd}:${even}`}
+                        type="button"
+                        aria-pressed={active}
+                        onClick={() => {
+                          setConditions({
+                            ...conditions,
+                            oddEvenRatio: active ? undefined : [odd, even]
+                          });
+                          resetOutputs();
+                        }}
+                        className={`min-h-10 px-3.5 rounded-xl border-2 text-xs font-black transition-all ${
+                          active
+                            ? 'border-emerald-500 bg-emerald-50 text-emerald-700 shadow-sm'
+                            : 'border-slate-100 bg-slate-50/50 text-slate-600 hover:border-slate-200'
+                        }`}
+                      >
+                        {odd}:{even}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           </div>
 
-          {!importMode && <div role="status" className={`rounded-2xl border p-4 text-sm leading-relaxed ${estimate.allowed ? 'border-emerald-100 bg-emerald-50/80 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
-            <p className="font-black">全复式：{estimate.fullCount.toLocaleString()} 注，{estimate.fullCost.toLocaleString()} 元</p>
-            <p className="mt-1">缩水或过滤后的注数及费用尚未计算，上述全复式数值是其上限。按每注 2 元普通投注计算，不含大乐透追加、倍数等附加投注。</p>
-            {!estimate.allowed && <p className="mt-2 font-black">{estimate.reason} 为保护计算和页面性能，以全复式上限判断。</p>}
-          </div>}
+          {!importMode && (
+            <div role="status" className={`rounded-2xl border p-4 text-sm leading-relaxed ${estimate.allowed ? 'border-emerald-100 bg-emerald-50/80 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
+              <p className="font-black">全复式：{estimate.fullCount.toLocaleString()} 注，{estimate.fullCost.toLocaleString()} 元</p>
+              <p className="mt-1">缩水或过滤后的注数及费用尚未计算，上述全复式数值是其上限。按每注 2 元普通投注计算，不含大乐透追加、倍数等附加投注。</p>
+              {!estimate.allowed && <p className="mt-2 font-black">{estimate.reason} 为保护计算和页面性能，在生成前进行规模检查。</p>}
+            </div>
+          )}
 
-          {isGenerating && <div role="status" aria-live="polite" className="rounded-2xl border border-emerald-100 bg-emerald-50/80 p-4 text-sm text-emerald-800">
-            <p className="font-bold">{progress === 1 ? '正在核对最终覆盖情况…' : `正在覆盖开奖情况：${Math.round((progress ?? 0) * 100)}%`}</p>
-            <progress className="mt-2 w-full accent-emerald-600" max={1} value={progress ?? 0} aria-label="缩水计算进度" />
-            <button type="button" onClick={cancelGeneration} className="mt-3 min-h-11 rounded-xl bg-white px-4 py-2 font-black text-emerald-700 border border-emerald-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500">取消计算</button>
-          </div>}
-          <button 
+          {isGenerating && (
+            <div role="status" aria-live="polite" className="rounded-2xl border border-emerald-100 bg-emerald-50/80 p-4 text-sm text-emerald-800">
+              <p className="font-bold">{progress === 1 ? '正在核对最终覆盖情况…' : `正在覆盖开奖情况：${Math.round((progress ?? 0) * 100)}%`}</p>
+              <progress className="mt-2 w-full accent-emerald-600" max={1} value={progress ?? 0} aria-label="缩水计算进度" />
+              <button type="button" onClick={cancelGeneration} className="mt-3 min-h-11 rounded-xl bg-white px-4 py-2 font-black text-emerald-700 border border-emerald-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500">取消计算</button>
+            </div>
+          )}
+          <button
             onClick={handleGenerate}
             disabled={isGenerating}
             className="w-full py-5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 disabled:from-slate-300 disabled:to-slate-400 text-white font-black rounded-3xl shadow-xl shadow-emerald-200 transition-all text-xl flex items-center justify-center gap-3 active:scale-[0.98]"
@@ -439,14 +596,14 @@ export default function ReducerPage() {
         </div>
 
         <div className="bg-white/70 backdrop-blur-xl p-4 md:p-8 rounded-[40px] shadow-2xl shadow-slate-200/60 border border-white flex flex-col h-full max-h-[1000px] min-w-0">
-          <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-8">
+          <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-6">
             <h3 className="text-xl md:text-2xl font-black text-slate-900 flex items-center gap-3">
-              生成结果 
+              生成结果
               <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100">{results.length} 注 · {results.length * 2} 元</span>
             </h3>
             {!importMode && results.length > 0 && (
               <div className="flex gap-2">
-                <button 
+                <button
                   onClick={(e) => handleAddToSelectionAll(e)}
                   className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-500 text-white rounded-xl text-xs font-black hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-100 active:scale-95"
                 >
@@ -457,12 +614,27 @@ export default function ReducerPage() {
             )}
           </div>
 
-          {(coverage || importResultCount !== null) && <p className="mb-4 text-xs text-slate-500">实际结果按每注 2 元普通投注计算，不含大乐透追加、倍数等附加投注。</p>}
+          {(coverage || importResultCount !== null) && <p className="mb-3 text-xs text-slate-500">实际结果按每注 2 元普通投注计算，不含大乐透追加、倍数等附加投注。</p>}
           {!importMode && coverage && (
             <div role="status" className={`mb-4 rounded-2xl border p-4 text-sm leading-relaxed ${coverage.total > 0 && coverage.covered === coverage.total && results.length > 0 ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
               <p className="font-black">{coverage.total > 0 && coverage.covered === coverage.total && results.length > 0 ? '覆盖完整' : results.length === 0 ? '无结果，无法保证覆盖' : '覆盖不完整，原目标未得到保证'}</p>
               <p className="mt-1">所选号码池包含 {coverage.matches} 个开奖号码时，最终结果至少一注命中 {coverage.guarantee} 个{type === 'SSQ' ? '红球' : '前区号码'}：已覆盖 {coverage.covered} / {coverage.total} 种情况。</p>
-              <p className="mt-1">仅计算{type === 'SSQ' ? '红球' : '前区'}，不保证奖级、奖金或最少注数。</p>
+              <p className="mt-1 text-xs opacity-85">仅计算{type === 'SSQ' ? '红球' : '前区'}，不保证奖级、奖金或最少注数。</p>
+
+              {breakdown && breakdown.length > 0 && results.length > 0 && (
+                <div className="mt-3 pt-3 border-t border-emerald-200/60">
+                  <p className="text-xs font-black mb-2">号码池命中 {coverage.matches} 球时的各等级命中分布（{type === 'SSQ' ? '红球' : '前区'}）：</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {breakdown.map(tier => (
+                      <div key={tier.minHit} className="bg-white/80 rounded-xl p-2.5 border border-emerald-100/80 text-xs">
+                        <div className="font-black text-emerald-900">命中 ≥{tier.minHit} 球</div>
+                        <div className="mt-1 text-[11px] font-bold text-slate-600">保底 {tier.minTickets} 注 · 最高 {tier.maxTickets} 注</div>
+                        <div className="text-[10px] text-slate-500">平均 {tier.avgTickets} 注 ({Math.round((tier.coveredOutcomes / Math.max(1, tier.totalOutcomes)) * 100)}%覆盖)</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
           {importMode && importResultCount !== null && (
@@ -499,10 +671,12 @@ export default function ReducerPage() {
                 const bluesStr = r.blues.map(n => n.toString().padStart(2, '0')).join(',');
                 const key = `${type}|${redsStr}|${bluesStr}`;
                 const isInSelection = inSelectionKeys.has(key);
+                const sumVal = r.reds.reduce((a, b) => a + b, 0);
+                const acVal = calculateAC(r.reds);
+                const oddCount = r.reds.filter(n => n % 2 !== 0).length;
 
                 return (
                   <div key={i} className="flex flex-col gap-2 p-3 bg-slate-50/50 border border-white rounded-2xl transition-all hover:bg-white hover:shadow-xl hover:shadow-slate-100 group relative overflow-hidden">
-                    {/* 第一行：序号与号码 (单行排列，支持横滑) */}
                     <div className="flex gap-3 items-center min-w-0">
                       <span className="w-5 h-5 rounded-md bg-white shadow-sm text-slate-400 text-[10px] flex-shrink-0 flex items-center justify-center font-black border border-slate-100">
                         {i + 1}
@@ -525,45 +699,45 @@ export default function ReducerPage() {
                       </div>
                     </div>
 
-                    {/* 分割线 */}
                     <div className="h-px bg-slate-100/50 mx-1"></div>
 
-                    {/* 第二行：操作按钮 */}
-                    <div className="flex items-center justify-end gap-2">
-                      {!importMode && <button
-                        onClick={async (e) => {
-                          if (isInSelection) {
-                            await storage.removeFromSelectionByContent(type, redsStr, bluesStr);
-                            window.dispatchEvent(new Event('selection-updated'));
-                            loadExistingStates();
-                          } else {
-                            triggerFlyToCart(e, 'bg-emerald-500');
-                            setTimeout(async () => {
-                              await storage.addToSelection({
-                                type,
-                                reds: redsStr,
-                                blues: bluesStr,
-                                toolUsed: 'REDUCER'
-                              });
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div className="flex items-center gap-1.5 text-[10px] font-black text-slate-400">
+                        <span className="bg-white px-2 py-0.5 rounded-md border border-slate-100">和值 {sumVal}</span>
+                        <span className="bg-white px-2 py-0.5 rounded-md border border-slate-100">奇偶 {oddCount}:{r.reds.length - oddCount}</span>
+                        <span className="bg-white px-2 py-0.5 rounded-md border border-slate-100">AC值 {acVal}</span>
+                      </div>
+                      {!importMode && (
+                        <button
+                          onClick={async (e) => {
+                            if (isInSelection) {
+                              await storage.removeFromSelectionByContent(type, redsStr, bluesStr);
                               window.dispatchEvent(new Event('selection-updated'));
                               loadExistingStates();
-                            }, 600);
-                          }
-                        }}
-                        className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all ${isInSelection ? 'text-emerald-600 bg-emerald-50 shadow-inner' : 'text-white bg-slate-900 hover:bg-slate-800 shadow-lg active:scale-95'}`}
-                      >
-                        {isInSelection ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
-                        {isInSelection ? '已加入' : '加入选号单'}
-                      </button>}
+                            } else {
+                              triggerFlyToCart(e, 'bg-emerald-500');
+                              setTimeout(async () => {
+                                await storage.addToSelection({
+                                  type,
+                                  reds: redsStr,
+                                  blues: bluesStr,
+                                  toolUsed: 'REDUCER'
+                                });
+                                window.dispatchEvent(new Event('selection-updated'));
+                                loadExistingStates();
+                              }, 600);
+                            }
+                          }}
+                          className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all ${isInSelection ? 'text-emerald-600 bg-emerald-50 shadow-inner' : 'text-white bg-slate-900 hover:bg-slate-800 shadow-lg active:scale-95'}`}
+                        >
+                          {isInSelection ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
+                          {isInSelection ? '已加入' : '加入选号单'}
+                        </button>
+                      )}
                     </div>
                   </div>
                 );
               })
-            )}
-            {results.length > 500 && (
-              <div className="text-center text-orange-500 py-6 text-xs font-black uppercase tracking-widest">
-                Large Result Set · Limited Preview
-              </div>
             )}
           </div>
         </div>

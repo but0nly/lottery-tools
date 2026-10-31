@@ -13,28 +13,33 @@ import { triggerFlyToCart } from '@/components/FlyToCartAnimation';
 
 export default function RandomPage() {
   const { activeType: type } = useLotteryContext();
-  const [reds, setReds] = useState<number[]>([]);
-  const [blues, setBlues] = useState<number[]>([]);
   const [fixedReds, setFixedReds] = useState<number[]>([]);
   const [fixedBlues, setFixedBlues] = useState<number[]>([]);
   const [excludedReds, setExcludedReds] = useState<number[]>([]);
   const [excludedBlues, setExcludedBlues] = useState<number[]>([]);
   const [betCount, setBetCount] = useState<number>(5);
-  const [allowDuplicates, setAllowDuplicates] = useState(false);
-  const [results, setResults] = useState<{reds: number[], blues: number[]}[]>([]);
+  const [results, setResults] = useState<{ reds: number[]; blues: number[] }[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
   const [animationKey, setAnimationKey] = useState(0);
-  
+
   // Track existing data for active states
   const [inSelectionKeys, setInSelectionKeys] = useState<Set<string>>(new Set());
+
+  const handleClear = useCallback(() => {
+    setFixedReds([]);
+    setFixedBlues([]);
+    setExcludedReds([]);
+    setExcludedBlues([]);
+    setResults([]);
+  }, []);
 
   const loadExistingStates = useCallback(async () => {
     const [selection, settings] = await Promise.all([
       storage.getSelection(),
       storage.getSettings<RandomSettings>('random_params')
     ]);
-    
+
     setInSelectionKeys(new Set(selection.map(i => `${i.type}|${i.reds}|${i.blues}`)));
 
     if (settings && settings.type === type) {
@@ -43,15 +48,15 @@ export default function RandomPage() {
       if (settings.excludedReds) setExcludedReds(settings.excludedReds);
       if (settings.excludedBlues) setExcludedBlues(settings.excludedBlues);
       if (settings.betCount) setBetCount(settings.betCount);
-      setAllowDuplicates(settings.allowDuplicates ?? false);
     } else {
       handleClear();
     }
     setIsInitialized(true);
-  }, [type]);
+  }, [type, handleClear]);
 
   useEffect(() => {
-    loadExistingStates();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void loadExistingStates();
     window.addEventListener('selection-updated', loadExistingStates);
     return () => window.removeEventListener('selection-updated', loadExistingStates);
   }, [loadExistingStates]);
@@ -66,9 +71,8 @@ export default function RandomPage() {
       excludedReds,
       excludedBlues,
       betCount,
-      allowDuplicates
     });
-  }, [type, fixedReds, fixedBlues, excludedReds, excludedBlues, betCount, allowDuplicates, isInitialized]);
+  }, [type, fixedReds, fixedBlues, excludedReds, excludedBlues, betCount, isInitialized]);
 
   const handleGenerate = () => {
     if (!Number.isInteger(betCount) || betCount < 1 || betCount > 1000) {
@@ -77,8 +81,8 @@ export default function RandomPage() {
     }
     try {
       const capacity = getRandomCombinationCapacity(type, fixedReds, fixedBlues, excludedReds, excludedBlues);
-      if (!allowDuplicates && betCount > capacity) {
-        toast.show(`可用组合仅有 ${capacity} 注，请减少注数或允许重复`, 'warning');
+      if (betCount > capacity) {
+        toast.show(`可用组合仅有 ${capacity} 注，请减少生成注数或放宽胆杀限制`, 'warning');
         return;
       }
     } catch (error) {
@@ -87,14 +91,14 @@ export default function RandomPage() {
     }
 
     setIsGenerating(true);
-    
+
     // Slight delay for UX
     setTimeout(() => {
       try {
-        const generated = generateRandomWithFixed(type, fixedReds, fixedBlues, betCount, excludedReds, excludedBlues, { allowDuplicates });
+        const generated = generateRandomWithFixed(type, fixedReds, fixedBlues, betCount, excludedReds, excludedBlues);
         setResults(generated);
         setAnimationKey(prev => prev + 1);
-        toast.show(`已随机生成 ${betCount} 注号码`, 'success');
+        toast.show(`已无放回随机生成 ${betCount} 注号码`, 'success');
       } catch (e) {
         console.error(e);
         toast.show("生成失败，请重试。", 'error');
@@ -104,19 +108,9 @@ export default function RandomPage() {
     }, 300);
   };
 
-  const handleClear = () => {
-    setReds([]);
-    setBlues([]);
-    setFixedReds([]);
-    setFixedBlues([]);
-    setExcludedReds([]);
-    setExcludedBlues([]);
-    setResults([]);
-  };
-
   const handleAddToSelectionAll = async (e: React.MouseEvent) => {
     triggerFlyToCart(e, 'bg-orange-500');
-    
+
     const batch = results.map(r => ({
       type,
       reds: r.reds.map(n => n.toString().padStart(2, '0')).join(','),
@@ -125,7 +119,7 @@ export default function RandomPage() {
     }));
 
     const { saved, skipped } = await storage.addBatchToSelection(batch);
-    
+
     window.dispatchEvent(new Event('selection-updated'));
     if (saved > 0) {
       toast.show(`成功加入 ${saved} 注选号${skipped > 0 ? ` (跳过 ${skipped} 注重复)` : ''}`, 'success');
@@ -146,7 +140,7 @@ export default function RandomPage() {
     <div className="relative min-h-full p-4 md:p-8 max-w-7xl mx-auto pb-32 md:pb-8 overflow-hidden">
       {/* Background Blobs */}
       <div className="absolute top-0 right-0 -z-10 w-96 h-96 bg-orange-50 rounded-full blur-3xl opacity-50 -mr-24 -mt-24" />
-      
+
       <div className="hidden md:flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10 md:pr-20">
         <div className="flex flex-col gap-2">
           <h1 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight flex items-center gap-3">
@@ -155,10 +149,10 @@ export default function RandomPage() {
             </div>
             智能随机选号
           </h1>
-          <p className="text-slate-500 text-sm md:text-base ml-1">支持“定胆”与“杀号”，在概率中寻找惊喜</p>
+          <p className="text-slate-500 text-sm md:text-base ml-1">支持“定胆”与“杀号”无放回均匀抽样，在概率中寻找惊喜</p>
         </div>
       </div>
-      
+
       <div className="grid lg:grid-cols-2 gap-6 md:gap-8 min-w-0">
         <div className="space-y-6 min-w-0">
           <div className="bg-white/70 backdrop-blur-xl p-6 rounded-[32px] shadow-xl shadow-slate-200/50 border border-white">
@@ -171,15 +165,15 @@ export default function RandomPage() {
                 <div className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">长按球号码排除(杀号)</div>
               </h3>
             </div>
-            <BallPicker 
-              max={type === 'SSQ' ? 33 : 35} 
-              selected={reds} 
+            <BallPicker
+              max={type === 'SSQ' ? 33 : 35}
+              selected={[]}
               fixed={fixedReds}
               excluded={excludedReds}
-              onChange={setReds} 
+              onChange={() => {}}
               onFixedChange={setFixedReds}
               onExcludedChange={setExcludedReds}
-              color="red" 
+              color="red"
             />
           </div>
 
@@ -193,20 +187,20 @@ export default function RandomPage() {
                 <div className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">长按球号码排除(杀号)</div>
               </h3>
             </div>
-            <BallPicker 
-              max={type === 'SSQ' ? 16 : 12} 
-              selected={blues} 
+            <BallPicker
+              max={type === 'SSQ' ? 16 : 12}
+              selected={[]}
               fixed={fixedBlues}
               excluded={excludedBlues}
-              onChange={setBlues} 
+              onChange={() => {}}
               onFixedChange={setFixedBlues}
               onExcludedChange={setExcludedBlues}
-              color="blue" 
+              color="blue"
             />
           </div>
 
           <div className="flex">
-            <button 
+            <button
               onClick={handleClear}
               className="flex-1 flex items-center justify-center gap-2 px-5 py-4 bg-white/70 backdrop-blur-xl hover:bg-rose-50 border border-white hover:border-rose-200 text-slate-600 hover:text-rose-600 rounded-[24px] text-sm font-black transition-all shadow-xl shadow-slate-200/50 active:scale-[0.98]"
             >
@@ -233,8 +227,8 @@ export default function RandomPage() {
               ))}
             </div>
             <div className="relative group">
-              <input 
-                type="number" 
+              <input
+                type="number"
                 value={betCount}
                 onChange={(e) => setBetCount(parseInt(e.target.value) || 0)}
                 placeholder="自定义注数 (1-1000)"
@@ -242,28 +236,20 @@ export default function RandomPage() {
               />
               <span className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-400 font-bold">注</span>
             </div>
-          </div>
-
-          <div className="bg-white/70 backdrop-blur-xl p-6 rounded-[32px] shadow-xl shadow-slate-200/50 border border-white">
-            <h3 className="text-lg font-bold mb-3">批次重复</h3>
-            <div className="grid grid-cols-2 gap-2" role="group" aria-label="批次重复设置">
-              {[false, true].map(value => (
-                <button key={String(value)} type="button" aria-pressed={allowDuplicates === value}
-                  onClick={() => setAllowDuplicates(value)}
-                  className={`py-3 rounded-xl border-2 font-bold transition-all focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-500 ${allowDuplicates === value ? 'border-orange-500 bg-orange-50 text-orange-700' : 'border-slate-100 bg-slate-50 text-slate-600'}`}>
-                  {value ? '允许重复' : '禁止重复'}
-                </button>
-              ))}
+            <div className="mt-4 pt-4 border-t border-slate-100">
+              {capacity !== undefined ? (
+                <p className="text-sm font-bold text-orange-700" aria-live="polite">
+                  可用不重复组合容量：{capacity.toLocaleString()} 注
+                  {betCount > capacity ? '（当前注数超过可用组合容量）' : ''}
+                </p>
+              ) : (
+                <p className="text-sm font-bold text-rose-600" aria-live="polite">{capacityError}</p>
+              )}
+              <p className="mt-1 text-xs text-slate-400">采用无放回均匀随机抽样，单批次内不会生成重复注；如需倍投请在选号单中调整倍数。</p>
             </div>
-            <p className="mt-3 text-sm text-slate-500">重复购买同一注不会提高至少中一注头奖的概率。</p>
-            {capacity !== undefined ? (
-              <p className="mt-2 text-sm font-bold text-orange-700" aria-live="polite">可用组合：{capacity.toLocaleString()} 注{!allowDuplicates && betCount > capacity ? '，当前注数超过可用组合' : ''}</p>
-            ) : (
-              <p className="mt-2 text-sm font-bold text-rose-600" aria-live="polite">{capacityError}</p>
-            )}
           </div>
 
-          <button 
+          <button
             onClick={handleGenerate}
             disabled={isGenerating}
             className="w-full py-5 bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 disabled:from-slate-300 disabled:to-slate-400 text-white font-black rounded-3xl shadow-xl shadow-orange-200 transition-all text-xl flex items-center justify-center gap-3 active:scale-[0.98]"
@@ -285,12 +271,12 @@ export default function RandomPage() {
         <div className="bg-white/70 backdrop-blur-xl p-4 md:p-8 rounded-[40px] shadow-2xl shadow-slate-200/60 border border-white flex flex-col h-full max-h-[1000px] min-w-0">
           <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-8">
             <h3 className="text-xl md:text-2xl font-black text-slate-900 flex items-center gap-3">
-              生成结果 
+              生成结果
               <span className="text-xs font-bold text-orange-600 bg-orange-50 px-3 py-1 rounded-full border border-orange-100">{results.length} 注</span>
             </h3>
             {results.length > 0 && (
               <div className="flex gap-2">
-                <button 
+                <button
                   onClick={(e) => handleAddToSelectionAll(e)}
                   className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-orange-500 text-white rounded-xl text-xs font-black hover:bg-orange-600 transition-all shadow-lg shadow-orange-100 active:scale-95"
                 >
@@ -321,18 +307,17 @@ export default function RandomPage() {
 
                 return (
                   <div key={i} className="flex flex-col gap-2 p-3 bg-slate-50/50 border border-white rounded-2xl transition-all hover:bg-white hover:shadow-xl hover:shadow-slate-100 group relative overflow-hidden">
-                    {/* 第一行：序号与号码 (单行排列，支持横滑) */}
                     <div className="flex gap-3 items-center min-w-0">
                       <span className="w-5 h-5 rounded-md bg-white shadow-sm text-slate-400 text-[10px] flex-shrink-0 flex items-center justify-center font-black border border-slate-100">
                         {i + 1}
                       </span>
-                      
+
                       <div className="flex-1 min-w-0 overflow-x-auto no-scrollbar pb-0.5">
                         <div className="flex flex-nowrap gap-1.5 items-center">
                           {r.reds.map((n, idx) => {
                             const isFixed = fixedReds.includes(n);
                             return (
-                              <TumblingBall 
+                              <TumblingBall
                                 key={`r${n}-${animationKey}`}
                                 finalNumber={n}
                                 color="red"
@@ -347,7 +332,7 @@ export default function RandomPage() {
                             const isFixed = fixedBlues.includes(n);
                             const redCount = r.reds.length;
                             return (
-                              <TumblingBall 
+                              <TumblingBall
                                 key={`b${n}-${animationKey}`}
                                 finalNumber={n}
                                 color="blue"
@@ -360,13 +345,11 @@ export default function RandomPage() {
                         </div>
                       </div>
                     </div>
-                    
-                    {/* 分割线 */}
+
                     <div className="h-px bg-slate-100/50 mx-1"></div>
 
-                    {/* 第二行：操作按钮 */}
                     <div className="flex items-center justify-end gap-2">
-                      <button 
+                      <button
                         onClick={async (e) => {
                           if (isInSelection) {
                             await storage.removeFromSelectionByContent(type, redsStr, bluesStr);

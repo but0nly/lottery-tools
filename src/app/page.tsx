@@ -10,13 +10,13 @@ export default function Home() {
 
       <header className="hidden md:block mb-16 relative">
         <div className="inline-block px-4 py-1.5 mb-6 text-sm font-semibold tracking-wide text-blue-600 uppercase bg-blue-50 rounded-full">
-          智能选号 · 数据驱动
+          智能选号 · 组合数学
         </div>
         <h1 className="text-5xl md:text-6xl font-black mb-6 tracking-tight">
           欢迎使用 <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">彩通宝</span>
         </h1>
         <p className="text-xl text-slate-600 max-w-3xl leading-relaxed">
-          双色球和大乐透选号工具：筛选组合、随机选号，或根据偏好假设及历史频次探索号码。
+          双色球和大乐透选号工具：位运算旋转矩阵缩水、无放回均匀随机选号，或根据选号偏好与组合形态假设探索低拥挤度号码。
         </p>
       </header>
 
@@ -28,12 +28,12 @@ export default function Home() {
           </div>
           <h2 className="text-2xl font-bold text-slate-900 mb-3 tracking-tight">组合缩水生成器</h2>
           <p className="text-slate-600 mb-6 leading-relaxed">
-            通过设定奇偶比、连号、和值等过滤条件，将庞大的复式组合大幅缩水，有效降低购彩成本。
+            通过设定奇偶比、AC值、连号、和值等过滤条件，结合位运算旋转矩阵将庞大的复式组合大幅缩水，有效降低购彩成本。
           </p>
           <ul className="space-y-3 mb-8 text-sm text-slate-500 flex-1">
             <li className="flex items-center gap-2.5"><CheckCircle2 className="w-4 h-4 text-emerald-500"/> 支持双色球、大乐透</li>
-            <li className="flex items-center gap-2.5"><CheckCircle2 className="w-4 h-4 text-emerald-500"/> 独家旋转矩阵优化算法</li>
-            <li className="flex items-center gap-2.5"><CheckCircle2 className="w-4 h-4 text-emerald-500"/> 精准条件过滤与方案导出</li>
+            <li className="flex items-center gap-2.5"><CheckCircle2 className="w-4 h-4 text-emerald-500"/> 约束感知旋转矩阵与命中保底明细</li>
+            <li className="flex items-center gap-2.5"><CheckCircle2 className="w-4 h-4 text-emerald-500"/> 奇偶比、AC值、和值、连号精准过滤</li>
           </ul>
           <Link href="/reducer" className="group/btn inline-flex items-center justify-center gap-2 w-full px-6 py-4 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-2xl transition-all shadow-lg shadow-emerald-200 hover:shadow-emerald-300">
             立即开始
@@ -48,14 +48,14 @@ export default function Home() {
           </div>
           <h2 className="text-2xl font-bold text-slate-900 mb-3 tracking-tight">智能随机生成器</h2>
           <p className="text-slate-600 mb-6 leading-relaxed">
-            支持“定胆”与“杀号”随机生成，锁定心仪号码并排除不看好的号码后补齐空位，在数学概率中寻找属于你的惊喜。
+            支持“定胆”与“杀号”无放回均匀随机生成，锁定心仪号码并排除不看好的号码后补齐空位，在数学概率中寻找属于你的惊喜。
           </p>
           <ul className="space-y-3 mb-8 text-sm text-slate-500 flex-1">
             <li className="flex items-center gap-2.5"><CheckCircle2 className="w-4 h-4 text-orange-500"/> 灵活一键定胆与杀号</li>
-            <li className="flex items-center gap-2.5"><CheckCircle2 className="w-4 h-4 text-orange-500"/> 一次生成 1-1000 注</li>
-            <li className="flex items-center gap-2.5"><CheckCircle2 className="w-4 h-4 text-orange-500"/> 自定义号码池补全</li>
+            <li className="flex items-center gap-2.5"><CheckCircle2 className="w-4 h-4 text-orange-500"/> 字典序反演无放回均匀抽样</li>
+            <li className="flex items-center gap-2.5"><CheckCircle2 className="w-4 h-4 text-orange-500"/> 实时计算可用组合容量</li>
           </ul>
-          <Link href="/random" className="group/btn inline-flex items-center justify-center gap-2 w-full px-6 py-4 bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-2xl transition-all shadow-lg shadow-orange-200 hover:shadow-orange-300">
+          <Link href="/random" className="group/btn inline-flex items-center justify-center gap-2 w-full px-6 py-4 bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-2xl transition-all shadow-lg shadow-orange-200 hover:shadow-emerald-300">
             随机选号
             <ArrowRight className="w-4 h-4 group-hover/btn:translate-x-1 transition-transform" />
           </Link>
@@ -68,10 +68,10 @@ export default function Home() {
           </div>
           <h2 className="text-2xl font-bold text-slate-900 mb-3 tracking-tight">反向冷门分析</h2>
           <p className="text-slate-600 mb-6 leading-relaxed">
-            心理避让依据选号偏好假设生成号码，权重未经真实投注数据验证；历史低频依据开奖样本生成号码。
+            依据大众选号偏好假设（日期、吉利数）与组合规律形态（连号、等差、同尾数、纯生日票）生成号码，权重未经真实投注数据验证。
           </p>
           <ul className="space-y-3 mb-8 text-sm text-slate-500 flex-1">
-            <li className="flex items-center gap-2.5"><CheckCircle2 className="w-4 h-4 text-rose-500"/> 历史低频不代表未来更容易开出，也不能反映他人选号偏好</li>
+            <li className="flex items-center gap-2.5"><CheckCircle2 className="w-4 h-4 text-rose-500"/> 单球偏好与组合规律形态双重规避</li>
             <li className="flex items-center gap-2.5"><CheckCircle2 className="w-4 h-4 text-rose-500"/> 偏好假设不保证减少撞注或提高收益</li>
             <li className="flex items-center gap-2.5"><CheckCircle2 className="w-4 h-4 text-rose-500"/> 可能的分奖影响与开奖概率是两回事</li>
           </ul>
@@ -81,7 +81,7 @@ export default function Home() {
           </Link>
         </div>
       </div>
-      
+
       <div className="relative overflow-hidden bg-gradient-to-br from-blue-600 to-indigo-700 rounded-3xl p-8 text-white shadow-2xl shadow-blue-200">
         <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -mr-32 -mt-32" />
         <h3 className="text-xl font-bold mb-3 flex items-center gap-2">

@@ -2,14 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import { toast } from '@/lib/notification';
-import { 
-  Trash2, Plus, Minus, 
+import {
+  Trash2, Plus, Minus,
   Copy, Check, Star, X, LayoutGrid, Image as ImageIcon, Download,
   Calculator, RefreshCcw
 } from 'lucide-react';
 import Link from 'next/link';
 import { storage, SavedCombination } from '@/lib/storage';
-import { LotteryType } from '@/lib/combinations';
 import { useLotteryContext } from '@/app/LotteryContext';
 import { motion, AnimatePresence, useMotionValue, useTransform, PanInfo } from 'framer-motion';
 import confetti from 'canvas-confetti';
@@ -24,16 +23,16 @@ const celebrateCopy = () => {
   });
 };
 
-const SwipeableItem = ({ 
-  record, 
-  onDelete, 
-  onToggleFavorite, 
-  onUpdateMultiplier, 
+const SwipeableItem = ({
+  record,
+  onDelete,
+  onToggleFavorite,
+  onUpdateMultiplier,
   onToggleSelect,
-  isSelected 
-}: { 
-  record: SavedCombination; 
-  onDelete: (id: number) => void; 
+  isSelected
+}: {
+  record: SavedCombination;
+  onDelete: (id: number) => void;
   onToggleFavorite: (id: number, isFavorite: boolean) => void;
   onUpdateMultiplier: (id: number, delta: number) => void;
   onToggleSelect: (id: number) => void;
@@ -41,16 +40,12 @@ const SwipeableItem = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const x = useMotionValue(0);
-  
-  // Controls the background opacity to prevent "red peek" when closed
+
   const bgOpacity = useTransform(x, [-20, 0], [1, 0]);
-  
-  // Controls the background "Delete" button reveal
   const deleteBtnOpacity = useTransform(x, [-100, -40], [1, 0]);
   const deleteScale = useTransform(x, [-100, -60], [1.1, 0.8]);
 
   const handleDragEnd = (_: unknown, info: PanInfo) => {
-    // If swiped left enough, keep it open
     if (info.offset.x < -40 || info.velocity.x < -100) {
       setIsOpen(true);
     } else {
@@ -60,12 +55,11 @@ const SwipeableItem = ({
 
   return (
     <div className="relative overflow-hidden rounded-[24px] mb-4 group touch-pan-y bg-slate-100/50">
-      {/* Background Action Layer (Revealed Delete Button) */}
-      <motion.div 
+      <motion.div
         style={{ opacity: bgOpacity }}
         className="absolute inset-y-0 right-0 w-32 bg-rose-500 flex items-center justify-end pr-8"
       >
-        <motion.button 
+        <motion.button
           style={{ opacity: deleteBtnOpacity, scale: deleteScale }}
           onClick={() => {
             onDelete(record.id!);
@@ -78,7 +72,6 @@ const SwipeableItem = ({
         </motion.button>
       </motion.div>
 
-      {/* Main Content Layer */}
       <motion.div
         drag="x"
         dragConstraints={{ left: -100, right: 0 }}
@@ -92,15 +85,16 @@ const SwipeableItem = ({
           if (isOpen) setIsOpen(false);
         }}
       >
-        {/* Checkbox */}
-        <button 
+        <button
           onClick={(e) => {
             e.stopPropagation();
             onToggleSelect(record.id!);
           }}
+          aria-pressed={isSelected}
+          aria-label="选择该注号码"
           className={`w-6 h-6 rounded-lg flex-shrink-0 flex items-center justify-center border-2 transition-all ${
-            isSelected 
-              ? 'bg-emerald-500 border-emerald-500 text-white shadow-lg shadow-emerald-200' 
+            isSelected
+              ? 'bg-emerald-500 border-emerald-500 text-white shadow-lg shadow-emerald-200'
               : 'bg-white border-slate-200 hover:border-emerald-400'
           }`}
         >
@@ -123,15 +117,16 @@ const SwipeableItem = ({
               ))}
             </div>
 
-            {/* Favorite Star Button */}
-            <button 
+            <button
               onClick={(e) => {
                 e.stopPropagation();
                 onToggleFavorite(record.id!, !record.isPinned);
               }}
+              aria-pressed={!!record.isPinned}
+              aria-label={record.isPinned ? '取消收藏' : '收藏该注'}
               className={`flex-shrink-0 p-2 rounded-xl transition-all active:scale-90 ${
-                record.isPinned 
-                  ? 'text-amber-500 bg-amber-50 border border-amber-100 shadow-sm' 
+                record.isPinned
+                  ? 'text-amber-500 bg-amber-50 border border-amber-100 shadow-sm'
                   : 'text-slate-300 hover:text-slate-400 hover:bg-slate-50'
               }`}
             >
@@ -151,13 +146,13 @@ const SwipeableItem = ({
               )}
             </div>
 
-            {/* Multiplier Controls */}
             <div className="flex items-center bg-slate-100 rounded-xl p-0.5">
-              <button 
+              <button
                 onClick={(e) => {
                   e.stopPropagation();
                   onUpdateMultiplier(record.id!, -1);
                 }}
+                aria-label="减少倍数"
                 className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white text-slate-400 hover:text-slate-900 disabled:opacity-30 transition-colors"
                 disabled={(record.multiplier || 1) <= 1}
               >
@@ -166,11 +161,12 @@ const SwipeableItem = ({
               <div className="px-2 min-w-[32px] text-center font-black text-xs text-slate-900">
                 {record.multiplier || 1}<span className="text-[10px] ml-0.5">倍</span>
               </div>
-              <button 
+              <button
                 onClick={(e) => {
                   e.stopPropagation();
                   onUpdateMultiplier(record.id!, 1);
                 }}
+                aria-label="增加倍数"
                 className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white text-slate-400 hover:text-slate-900 transition-colors"
               >
                 <Plus className="w-3.5 h-3.5" />
@@ -188,8 +184,13 @@ export default function SavedPage() {
   const [loading, setLoading] = useState(true);
   const { activeType: activeTab } = useLotteryContext();
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
-  const [image, setImage] = useState<{url: string; key: string} | null>(null);
-  const imageKey = JSON.stringify(records.filter(r => r.type === activeTab && selectedIds.has(r.id!)).map(r => [r.id, r.reds, r.blues, r.multiplier]));
+  const [dltAdditional, setDltAdditional] = useState(false);
+  const [image, setImage] = useState<{ url: string; key: string } | null>(null);
+  const isAdditional = activeTab === 'DLT' && dltAdditional;
+  const imageKey = JSON.stringify([
+    isAdditional,
+    records.filter(r => r.type === activeTab && selectedIds.has(r.id!)).map(r => [r.id, r.reds, r.blues, r.multiplier])
+  ]);
   useEffect(() => () => { if (image) URL.revokeObjectURL(image.url); }, [image]);
 
   // A selection belongs to one lottery only.
@@ -209,7 +210,8 @@ export default function SavedPage() {
   };
 
   useEffect(() => {
-    loadRecords();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void loadRecords();
     const handleUpdate = () => loadRecords(true);
     window.addEventListener('selection-updated', handleUpdate);
     return () => window.removeEventListener('selection-updated', handleUpdate);
@@ -220,14 +222,13 @@ export default function SavedPage() {
     if (!record) return;
 
     const performDelete = async () => {
-      // Optimistic delete
       setRecords(prev => prev.filter(r => r.id !== id));
       setSelectedIds(prev => {
         const next = new Set(prev);
         next.delete(id);
         return next;
       });
-      
+
       await storage.removeFromSelection(id);
       window.dispatchEvent(new Event('selection-updated'));
     };
@@ -244,9 +245,7 @@ export default function SavedPage() {
   };
 
   const handleToggleFavorite = async (id: number, isPinned: boolean) => {
-    // Optimistic update
     setRecords(prev => prev.map(r => r.id === id ? { ...r, isPinned } : r));
-    
     await storage.updateSelection(id, { isPinned });
     window.dispatchEvent(new Event('selection-updated'));
   };
@@ -256,10 +255,8 @@ export default function SavedPage() {
     if (!record) return;
     const newMultiplier = Math.max(1, (record.multiplier || 1) + delta);
     if (newMultiplier === record.multiplier) return;
-    
-    // Optimistic update
+
     setRecords(prev => prev.map(r => r.id === id ? { ...r, multiplier: newMultiplier } : r));
-    
     await storage.updateSelection(id, { multiplier: newMultiplier });
     window.dispatchEvent(new Event('selection-updated'));
   };
@@ -280,20 +277,22 @@ export default function SavedPage() {
       return;
     }
 
-    const label = activeTab === 'SSQ' ? '双色球' : '大乐透';
+    const label = activeTab === 'SSQ' ? '双色球' : isAdditional ? '大乐透·追加投注' : '大乐透';
     const text = `【${label}】\n` + selectedRecords.map(r => {
       const first = r.type === 'SSQ' ? '红球' : '前区';
       const second = r.type === 'SSQ' ? '蓝球' : '后区';
-      const multiplier = (r.multiplier || 1) > 1 ? `（${r.multiplier}倍）` : '';
-      return `${first} ${r.reds.split(',').join(' + ')} ${second} ${r.blues.split(',').join(' + ')};${multiplier}`;
+      const tags = [
+        isAdditional ? '追加' : '',
+        (r.multiplier || 1) > 1 ? `${r.multiplier}倍` : ''
+      ].filter(Boolean);
+      const suffix = tags.length > 0 ? `（${tags.join('·')}）` : '';
+      return `${first} ${r.reds.split(',').join(' + ')} ${second} ${r.blues.split(',').join(' + ')};${suffix}`;
     }).join('\n');
 
     try {
-      // Modern API (Requires HTTPS)
       if (navigator.clipboard && window.isSecureContext) {
         await navigator.clipboard.writeText(text);
       } else {
-        // Fallback for HTTP/older browsers
         const textArea = document.createElement("textarea");
         textArea.value = text;
         textArea.style.position = "fixed";
@@ -306,9 +305,8 @@ export default function SavedPage() {
         document.body.removeChild(textArea);
         if (!successful) throw new Error('Fallback failed');
       }
-      
+
       toast.show('已复制到剪贴板，祝您中大奖！ 🎉', 'success');
-      
       celebrateCopy();
     } catch {
       toast.show('复制失败，请重试', 'error');
@@ -326,18 +324,20 @@ export default function SavedPage() {
       if (!ctx || canvas.height > 32767 || canvas.width * canvas.height > 268435456) throw new Error('图片过长，设备无法生成完整图片');
       ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.fillStyle = '#0f172a'; ctx.font = 'bold 28px sans-serif';
-      ctx.fillText(`【${activeTab === 'SSQ' ? '双色球' : '大乐透'}】`, 30, 40);
+      const title = activeTab === 'SSQ' ? '双色球' : isAdditional ? '大乐透 · 追加投注' : '大乐透';
+      ctx.fillText(`【${title}】`, 30, 40);
       ctx.font = '16px sans-serif'; ctx.fillStyle = '#64748b'; ctx.fillText(activeTab === 'SSQ' ? '红球' : '前区', 50, 70); ctx.fillText(activeTab === 'SSQ' ? '蓝球' : '后区', 410, 70);
       selected.forEach((r, index) => {
         const y = 100 + index * 72;
         ctx.font = '16px sans-serif'; ctx.fillStyle = '#64748b'; ctx.fillText(String(index + 1), 15, y + 6);
-        const drawBalls = (values: string[], x: number, color: string) => values.forEach((value, i) => {
-          const cx = x + i * 55; ctx.beginPath(); ctx.arc(cx, y, 21, 0, Math.PI * 2); ctx.fillStyle = color; ctx.fill();
+        const drawBalls = (values: string[], xOffset: number, color: string) => values.forEach((value, i) => {
+          const cx = xOffset + i * 55; ctx.beginPath(); ctx.arc(cx, y, 21, 0, Math.PI * 2); ctx.fillStyle = color; ctx.fill();
           ctx.fillStyle = '#ffffff'; ctx.font = 'bold 17px sans-serif'; ctx.textAlign = 'center'; ctx.fillText(value, cx, y + 6); ctx.textAlign = 'start';
         });
         drawBalls(r.reds.split(','), 70, '#ef4444');
         drawBalls(r.blues.split(','), 430, '#3b82f6');
-        if ((r.multiplier || 1) > 1) { ctx.fillStyle = '#334155'; ctx.font = '18px sans-serif'; ctx.fillText(`${r.multiplier}倍`, 580, y + 6); }
+        const tags = [isAdditional ? '追加' : '', (r.multiplier || 1) > 1 ? `${r.multiplier}倍` : ''].filter(Boolean).join('·');
+        if (tags) { ctx.fillStyle = '#334155'; ctx.font = '18px sans-serif'; ctx.fillText(tags, 580, y + 6); }
       });
       const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob(b => b ? resolve(b) : reject(new Error('图片生成失败')), 'image/png'));
       const url = URL.createObjectURL(blob); setImage({ url, key: imageKey });
@@ -352,11 +352,11 @@ export default function SavedPage() {
 
   const handleDeleteSelected = async () => {
     if (selectedIds.size === 0) return;
-    
+
     const selectedRecords = records.filter(r => selectedIds.has(r.id!));
     const favoriteCount = selectedRecords.filter(r => r.isPinned).length;
-    
-    const message = favoriteCount > 0 
+
+    const message = favoriteCount > 0
       ? `确定要删除选中的 ${selectedIds.size} 注号码吗？（其中包含 ${favoriteCount} 注收藏号码）`
       : `确定要删除选中的 ${selectedIds.size} 注号码吗？`;
 
@@ -365,7 +365,6 @@ export default function SavedPage() {
       message,
       onConfirm: async () => {
         const idsToRemove = Array.from(selectedIds);
-        // Optimistic update
         setRecords(prev => prev.filter(r => !selectedIds.has(r.id!)));
         setSelectedIds(new Set());
 
@@ -381,7 +380,7 @@ export default function SavedPage() {
   const handleClearCurrent = async () => {
     const currentTabRecords = records.filter(r => r.type === activeTab);
     const nonFavorites = currentTabRecords.filter(r => !r.isPinned);
-    
+
     if (currentTabRecords.length === 0) return;
 
     if (nonFavorites.length === 0) {
@@ -394,9 +393,8 @@ export default function SavedPage() {
       message: `将清理当前页 ${nonFavorites.length} 注未收藏的号码，保留收藏号码。确认吗？`,
       onConfirm: async () => {
         const idsToRemove = nonFavorites.map(r => r.id!);
-        // Optimistic update
         setRecords(prev => prev.filter(r => !idsToRemove.includes(r.id!)));
-        
+
         for (const id of idsToRemove) {
           await storage.removeFromSelection(id);
         }
@@ -406,28 +404,22 @@ export default function SavedPage() {
     });
   };
 
-  // Grouping logic for the ACTIVE TAB
   const filteredRecords = records.filter(r => r.type === activeTab);
-  const ssqCount = records.filter(r => r.type === 'SSQ').length;
-  const dltCount = records.filter(r => r.type === 'DLT').length;
-
   const selectedInCurrentTab = filteredRecords.filter(r => selectedIds.has(r.id!));
   const isAllSelected = filteredRecords.length > 0 && selectedInCurrentTab.length === filteredRecords.length;
   const isPartialSelected = selectedInCurrentTab.length > 0 && selectedInCurrentTab.length < filteredRecords.length;
 
-  // Calculate total cost for selected items
-  const totalCost = selectedInCurrentTab.reduce((acc, curr) => acc + (curr.multiplier || 1) * 2, 0);
+  const unitCost = isAdditional ? 3 : 2;
+  const totalCost = selectedInCurrentTab.reduce((acc, curr) => acc + (curr.multiplier || 1) * unitCost, 0);
 
   const handleSelectAll = () => {
     if (isAllSelected) {
-      // Unselect all in current tab
       setSelectedIds(prev => {
         const next = new Set(prev);
         filteredRecords.forEach(r => next.delete(r.id!));
         return next;
       });
     } else {
-      // Select all in current tab
       setSelectedIds(prev => {
         const next = new Set(prev);
         filteredRecords.forEach(r => next.add(r.id!));
@@ -438,16 +430,28 @@ export default function SavedPage() {
 
   return (
     <div className="relative min-h-full p-4 md:p-8 max-w-7xl mx-auto pb-40 md:pb-32 overflow-x-hidden">
-      {/* Background Blobs */}
       <div className="absolute top-0 right-0 -z-10 w-96 h-96 bg-blue-50 rounded-full blur-3xl opacity-50 -mr-24 -mt-24 pointer-events-none" />
-      
+
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-6 md:mb-10">
-        {/* Actions */}
         <div className="flex flex-wrap items-center justify-end w-full gap-4">
-          <div className="flex items-center gap-2 ml-auto">
+          <div className="flex items-center gap-2 ml-auto flex-wrap">
+            {activeTab === 'DLT' && filteredRecords.length > 0 && (
+              <button
+                type="button"
+                aria-pressed={dltAdditional}
+                onClick={() => setDltAdditional(prev => !prev)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-black transition-all active:scale-95 ${
+                  dltAdditional
+                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200'
+                    : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 shadow-sm'
+                }`}
+              >
+                <span>追加投注 (3元/注)</span>
+              </button>
+            )}
             {filteredRecords.length > 0 && (
               <>
-                <button 
+                <button
                   onClick={handleClearCurrent}
                   className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-black bg-white text-rose-500 border border-rose-100 hover:bg-rose-50 transition-all shadow-sm active:scale-95"
                   title="清理未收藏号码"
@@ -455,11 +459,11 @@ export default function SavedPage() {
                   <RefreshCcw className="w-4 h-4" />
                   <span className="hidden sm:inline">一键清理</span>
                 </button>
-                <button 
+                <button
                   onClick={handleSelectAll}
                   className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-black transition-all active:scale-95 ${
-                    isAllSelected 
-                      ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-200' 
+                    isAllSelected
+                      ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-200'
                       : isPartialSelected
                         ? 'bg-emerald-50 text-emerald-600 border border-emerald-200 shadow-sm'
                         : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 shadow-sm'
@@ -493,7 +497,7 @@ export default function SavedPage() {
           <p className="text-sm md:text-base text-slate-500 font-medium mb-10 max-w-md mx-auto">
             在缩水、随机或反向模块生成的号码将在这里显示。您可以先去生成一些号码：
           </p>
-          
+
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl mx-auto">
             <Link href="/reducer" className="flex flex-col items-center gap-3 p-6 rounded-[32px] bg-white border border-slate-100 shadow-xl shadow-slate-200/50 hover:-translate-y-1 transition-all group">
               <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-500 flex items-center justify-center group-hover:scale-110 transition-transform">
@@ -519,8 +523,8 @@ export default function SavedPage() {
         <div className="grid gap-2">
           {filteredRecords.map(record => (
             <div key={record.id} className="w-full">
-              <SwipeableItem 
-                record={record} 
+              <SwipeableItem
+                record={record}
                 onDelete={handleDelete}
                 onToggleFavorite={handleToggleFavorite}
                 onUpdateMultiplier={handleUpdateMultiplier}
@@ -536,32 +540,46 @@ export default function SavedPage() {
       <AnimatePresence>
         {selectedIds.size > 0 && (
           <div className="fixed bottom-24 md:bottom-10 left-0 right-0 px-4 md:px-6 z-40 flex justify-center">
-            <motion.div 
+            <motion.div
               initial={{ y: 100, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: 100, opacity: 0 }}
               className="bg-slate-900/90 backdrop-blur-xl border border-white/10 px-4 md:px-6 py-3 md:py-4 rounded-[28px] shadow-2xl flex flex-wrap items-center gap-2 md:gap-4 max-w-2xl w-full"
             >
               <div className="w-full sm:w-auto sm:flex-1 min-w-0 flex items-center justify-between sm:block">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <p className="text-white font-black text-base md:text-lg leading-tight">已选 {selectedIds.size} 注</p>
                   <div className="h-4 w-px bg-white/20" />
                   <p className="text-emerald-400 font-black text-base md:text-lg">¥{totalCost}</p>
+                  {activeTab === 'DLT' && (
+                    <button
+                      type="button"
+                      aria-pressed={dltAdditional}
+                      onClick={() => setDltAdditional(prev => !prev)}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-black transition-all ${
+                        dltAdditional
+                          ? 'bg-indigo-500 text-white'
+                          : 'bg-white/10 text-slate-300 hover:bg-white/20'
+                      }`}
+                    >
+                      {dltAdditional ? '已含追加 (3元/注)' : '+ 追加 (3元/注)'}
+                    </button>
+                  )}
                 </div>
                 <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mt-1 truncate">
                   {isAllSelected ? '已全选当前列表' : '可批量复制或删除'}
                 </p>
               </div>
-              
+
               <div className="flex items-center gap-2 w-full sm:w-auto">
-                <button 
+                <button
                   onClick={handleDeleteSelected}
                   className="p-3 bg-rose-500/20 hover:bg-rose-500 text-rose-500 hover:text-white rounded-2xl transition-all"
                   title="删除已选"
                 >
                   <Trash2 className="w-5 h-5" />
                 </button>
-                <button 
+                <button
                   onClick={handleCopySelected}
                   className="flex-1 sm:flex-none justify-center bg-emerald-500 hover:bg-emerald-600 text-white font-black px-3 md:px-5 py-3 rounded-2xl shadow-lg shadow-emerald-500/20 flex items-center gap-1.5 transition-all active:scale-95 text-xs sm:text-sm"
                 >
@@ -570,7 +588,7 @@ export default function SavedPage() {
                 </button>
                 <button onClick={handleCopyImage} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-blue-500 hover:bg-blue-600 text-white font-black px-3 py-3 rounded-2xl shadow-lg shadow-blue-500/20 text-xs sm:text-sm active:scale-95 transition-all"><ImageIcon className="w-4 h-4" />复制图片</button>
                 {image && image.key === imageKey && <a href={image.url} download="选号单.png" aria-label="下载图片" className="p-3 rounded-2xl bg-white/10 text-white"><Download className="w-5 h-5" /></a>}
-                <button 
+                <button
                   onClick={() => setSelectedIds(new Set())}
                   className="p-2 text-slate-400 hover:text-white transition-colors"
                   title="取消选择"

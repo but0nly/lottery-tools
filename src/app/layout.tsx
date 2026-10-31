@@ -16,7 +16,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="zh">
+    <html lang="zh" suppressHydrationWarning>
       <body className="h-screen overflow-hidden bg-slate-50 font-sans flex flex-col">
         <LotteryProvider>
           {/* 顶部固定栏 (移动端) */}
