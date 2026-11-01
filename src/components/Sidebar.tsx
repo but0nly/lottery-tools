@@ -9,13 +9,15 @@ import { useLotteryContext } from '@/app/LotteryContext';
 import { LotteryTabSwitcher } from './LotteryTabSwitcher';
 
 const navItems = [
-  { href: '/', label: '首页', icon: Home, activeColor: 'text-emerald-500' },
+  { href: '/', label: '首页', icon: Home, activeColor: 'text-emerald-500', desktopOnly: true },
   { href: '/reducer', label: '缩水', icon: Calculator, activeColor: 'text-emerald-500' },
-  { href: '/random', label: '随机', icon: Dices, activeColor: 'text-orange-500', special: true },
   { href: '/reverse', label: '反向', icon: History, activeColor: 'text-rose-500' },
+  { href: '/random', label: '随机', icon: Dices, activeColor: 'text-orange-500', special: true },
   { href: '/ev', label: '期望', icon: Scale, activeColor: 'text-sky-500' },
   { href: '/selection', label: '选号', icon: Bookmark, activeColor: 'text-blue-500' },
 ];
+
+const mobileNavItems = navItems.filter(item => !item.desktopOnly);
 
 const getPageTitle = (pathname: string) => {
   const currentItem = navItems.find(item => item.href === pathname);
@@ -35,15 +37,19 @@ export function MobileHeader() {
 
   return (
     <header className="md:hidden h-16 bg-white/80 backdrop-blur-2xl text-slate-900 flex-shrink-0 flex items-center justify-between px-6 border-b border-slate-100/50 shadow-sm shadow-slate-100/20 z-50 sticky top-0">
-      <div className="flex items-center gap-3">
-        <div className="w-9 h-9 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/20">
+      <Link
+        href="/"
+        aria-label="返回首页"
+        className="flex items-center gap-3 group active:scale-95 transition-transform"
+      >
+        <div className="w-9 h-9 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/20 group-hover:scale-105 transition-transform">
           <span className="text-white font-black text-xs">彩</span>
         </div>
         <div className="flex flex-col">
           <h1 className="text-base font-black tracking-tight leading-none text-slate-900">彩通宝</h1>
           <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">{pageTitle}</span>
         </div>
-      </div>
+      </Link>
 
       <div className="flex-shrink-0">
         <LotteryTabSwitcher 
@@ -86,15 +92,15 @@ export function DesktopSidebar() {
       <div className="absolute top-0 left-0 w-full h-64 bg-gradient-to-b from-emerald-500/10 to-transparent pointer-events-none" />
       
       <div className="p-8 relative">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-900/20">
+        <Link href="/" className="flex items-center gap-3 group">
+          <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-900/20 group-hover:scale-105 transition-transform">
             <span className="text-white font-black text-xl">彩</span>
           </div>
           <div>
             <h1 className="text-2xl font-black tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400">彩通宝</h1>
             <p className="text-[10px] text-slate-500 font-bold uppercase tracking-[0.2em] mt-0.5">Smart Lottery</p>
           </div>
-        </div>
+        </Link>
       </div>
 
       <div className="px-6 mb-6">
@@ -182,7 +188,7 @@ export function MobileNav() {
   return (
     <div className="md:hidden fixed bottom-3 left-0 right-0 px-6 z-50">
       <nav className="bg-white/95 backdrop-blur-2xl border border-white/50 shadow-[0_15px_50px_-12px_rgba(0,0,0,0.15)] rounded-[28px] flex justify-around items-center h-[64px] px-1 max-w-md mx-auto relative overflow-visible">
-        {navItems.map((item) => {
+        {mobileNavItems.map((item) => {
           const isActive = pathname === item.href;
           const isSelection = item.label === '选号';
           
@@ -192,7 +198,7 @@ export function MobileNav() {
                 key={item.href} 
                 href={item.href} 
                 onClick={handleDiceClick}
-                className="relative -top-3.5 flex flex-col items-center justify-center transition-transform active:scale-90"
+                className="relative -top-3.5 flex flex-col items-center justify-center flex-1 transition-transform active:scale-90"
               >
                 <div className={`w-[52px] h-[52px] rounded-2xl flex items-center justify-center shadow-2xl transition-all ring-4 ring-white ${isActive ? 'bg-orange-500 shadow-orange-200' : 'bg-slate-950 shadow-slate-900/40'}`}>
                   <item.icon className={`w-6 h-6 text-white ${isShaking ? 'animate-shake' : ''}`} />

@@ -41,16 +41,36 @@ export interface RandomSettings {
 }
 
 let dbInstance: IDBDatabase | null = null;
+let dbPromise: Promise<IDBDatabase> | null = null;
 
 const openDB = (): Promise<IDBDatabase> => {
   if (dbInstance) return Promise.resolve(dbInstance);
-  return new Promise((resolve, reject) => {
+  if (dbPromise) return dbPromise;
+
+  dbPromise = new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
 
-    request.onerror = () => reject(request.error);
+    request.onerror = () => {
+      dbPromise = null;
+      reject(request.error);
+    };
+    request.onblocked = () => {
+      dbPromise = null;
+      reject(new Error('IndexedDB upgrade blocked by another connection'));
+    };
     request.onsuccess = () => {
-      dbInstance = request.result;
-      resolve(dbInstance);
+      const db = request.result;
+      db.onversionchange = () => {
+        db.close();
+        dbInstance = null;
+        dbPromise = null;
+      };
+      db.onclose = () => {
+        dbInstance = null;
+        dbPromise = null;
+      };
+      dbInstance = db;
+      resolve(db);
     };
 
     request.onupgradeneeded = (event) => {
@@ -100,6 +120,8 @@ const openDB = (): Promise<IDBDatabase> => {
       }
     };
   });
+
+  return dbPromise;
 };
 
 export const storage = {

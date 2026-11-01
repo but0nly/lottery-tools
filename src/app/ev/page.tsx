@@ -3,12 +3,12 @@
 import { useMemo, useState } from 'react';
 import { Scale, AlertTriangle } from 'lucide-react';
 import { useLotteryContext } from '@/app/LotteryContext';
-import { computeEV, type EVResult } from '@/lib/ev';
+import { computeEV, poissonShareFactor, type EVResult } from '@/lib/ev';
 import { getPrizeRules } from '@/lib/prize-rules';
 
 const DEFAULTS = {
-  SSQ: { pool: '10000', sales: '17000', second: '300' },
-  DLT: { pool: '10000', sales: '15000', second: '300' },
+  SSQ: { pool: '3000', sales: '17000', second: '300' },
+  DLT: { pool: '3000', sales: '15000', second: '300' },
 } as const;
 
 const yuan = (n: number) => `${n.toFixed(n < 1 ? 4 : 2)} 元`;
@@ -65,6 +65,16 @@ export default function EVPage() {
   }, [type, f, tickets, addOn]);
 
   const losing = result !== null && result.returnRatePosttax < 1;
+  const tier1 = rules.tiers[0];
+  const isAddOnActive = type === 'DLT' && addOn;
+  const tier1Cap = (tier1.cap ?? Infinity) * (1 + (isAddOnActive ? tier1.addOnRatio : 0));
+  const c1 = result?.contributions[0];
+  const expectedJackpotPretax = c1 && c1.probability > 0 ? c1.evPretax / c1.probability : 0;
+  const uncappedJackpotPretax =
+    result !== null
+      ? Number(f.pool) * 10000 * poissonShareFactor(result.lambda) * (1 + (isAddOnActive ? tier1.addOnRatio : 0))
+      : 0;
+  const isCapSaturated = result !== null && Number.isFinite(tier1Cap) && expectedJackpotPretax >= tier1Cap * 0.99;
 
   return (
     <div className="relative p-4 md:p-8 pb-32 max-w-3xl mx-auto space-y-6">
@@ -83,7 +93,13 @@ export default function EVPage() {
 
       <section className="bg-white/80 backdrop-blur-xl border border-white rounded-3xl shadow-xl p-5 space-y-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Field label="一等奖奖金总额（奖池）" unit="万元" value={f.pool} onChange={v => set('pool', v)} />
+          <Field
+            label="一等奖奖金总额（奖池）"
+            unit="万元"
+            value={f.pool}
+            onChange={v => set('pool', v)}
+            hint={tier1.cap ? `单注基本封顶 ${(tier1.cap / 10000).toFixed(0)} 万元` : undefined}
+          />
           <Field label="预计本期销量" unit="万注" value={f.sales} onChange={v => set('sales', v)} hint="决定头奖平分人数" />
           <Field label="二等奖奖金总额" unit="万元" value={f.second} onChange={v => set('second', v)} />
           <Field label="购买注数" unit="注" value={tickets} onChange={setTickets} />
@@ -112,14 +128,11 @@ export default function EVPage() {
       {result && (
         <>
           <section className="bg-white/80 backdrop-blur-xl border border-white rounded-3xl shadow-xl p-5 space-y-4">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               <div className="p-4 rounded-2xl bg-slate-50">
                 <div className="text-[10px] font-black text-slate-400">每注 EV（税后）</div>
                 <div className="text-xl font-black text-slate-900">{yuan(result.evPosttax)}</div>
-              </div>
-              <div className="p-4 rounded-2xl bg-slate-50">
-                <div className="text-[10px] font-black text-slate-400">每注 EV（税前）</div>
-                <div className="text-xl font-black text-slate-900">{yuan(result.evPretax)}</div>
+                <div className="text-[10px] text-slate-400">税前 {yuan(result.evPretax)}</div>
               </div>
               <div className="p-4 rounded-2xl bg-slate-50">
                 <div className="text-[10px] font-black text-slate-400">回报率（税后）</div>
@@ -127,10 +140,33 @@ export default function EVPage() {
                 <div className="text-[10px] text-slate-400">税前 {pct(result.returnRatePretax)}</div>
               </div>
               <div className="p-4 rounded-2xl bg-slate-50">
+                <div className="text-[10px] font-black text-slate-400">期望总返还（税后）</div>
+                <div className="text-xl font-black text-slate-900">{yuan(result.totalEvPosttax)}</div>
+                <div className="text-[10px] text-slate-400">共投入 {result.totalCost} 元（税前 {yuan(result.totalEvPretax)}）</div>
+              </div>
+              <div className="p-4 rounded-2xl bg-slate-50">
+                <div className="text-[10px] font-black text-slate-400">头奖期望单注奖金（税前）</div>
+                <div className="text-xl font-black text-slate-900">
+                  {(expectedJackpotPretax / 10000).toLocaleString('zh-CN', { maximumFractionDigits: 2 })} 万元
+                </div>
+                <div className="text-[10px] text-slate-400">
+                  无封顶均值 {(uncappedJackpotPretax / 10000).toLocaleString('zh-CN', { maximumFractionDigits: 2 })} 万元
+                </div>
+              </div>
+              <div className="p-4 rounded-2xl bg-slate-50 col-span-2 sm:col-span-2">
                 <div className="text-[10px] font-black text-slate-400">头奖期望同中人数 λ</div>
                 <div className="text-xl font-black text-slate-900">{result.lambda.toFixed(3)}</div>
+                <div className="text-[10px] text-slate-400">
+                  期望平分总注数 λ + 1 ≈ {(result.lambda + 1).toFixed(2)} 注
+                </div>
               </div>
             </div>
+            {isCapSaturated && (
+              <div className="bg-sky-50 border border-sky-200/80 text-sky-800 rounded-2xl px-4 py-3 text-xs font-medium leading-relaxed">
+                当前奖池除以期望平分注数（{(result.lambda + 1).toFixed(1)} 注）已超过单注封顶上限（{(tier1Cap / 10000).toFixed(0)} 万元），
+                头奖实际单注期望已贴近封顶值，因此继续调高奖池对实际 EV 增幅极小（请参考上方“无封顶均值”查看奖池线性变化）。
+              </div>
+            )}
             <p className="text-sm text-slate-600">
               共投入 <b>{result.totalCost} 元</b>，理论期望返还 <b>{yuan(result.totalEvPosttax)}</b>（税后）。
             </p>

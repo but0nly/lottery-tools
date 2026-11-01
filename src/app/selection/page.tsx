@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { toast } from '@/lib/notification';
 import {
   Trash2, Plus, Minus,
@@ -431,15 +431,18 @@ export default function SavedPage() {
   };
 
   const targetRecords = selectedInCurrentTab.length > 0 ? selectedInCurrentTab : filteredRecords;
-  const payoutTickets: { reds: number[]; blues: number[] }[] = [];
-  for (const r of targetRecords) {
-    const reds = r.reds.split(',').map(n => parseInt(n.trim(), 10)).filter(n => !Number.isNaN(n));
-    const blues = r.blues.split(',').map(n => parseInt(n.trim(), 10)).filter(n => !Number.isNaN(n));
-    const mult = r.multiplier || 1;
-    for (let m = 0; m < mult; m++) {
-      payoutTickets.push({ reds, blues });
+  const payoutTickets = useMemo(() => {
+    const list: { reds: number[]; blues: number[] }[] = [];
+    for (const r of targetRecords) {
+      const reds = r.reds.split(',').map(n => parseInt(n.trim(), 10)).filter(n => !Number.isNaN(n));
+      const blues = r.blues.split(',').map(n => parseInt(n.trim(), 10)).filter(n => !Number.isNaN(n));
+      const mult = r.multiplier || 1;
+      for (let m = 0; m < mult; m++) {
+        list.push({ reds, blues });
+      }
     }
-  }
+    return list;
+  }, [targetRecords]);
 
   return (
     <div className="relative min-h-full p-4 md:p-8 max-w-7xl mx-auto pb-40 md:pb-32 overflow-x-hidden">
