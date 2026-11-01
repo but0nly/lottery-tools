@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from 'react';
-import { Scale, AlertTriangle } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 import { useLotteryContext } from '@/app/LotteryContext';
 import { computeEV, poissonShareFactor, type EVResult } from '@/lib/ev';
 import { getPrizeRules } from '@/lib/prize-rules';
@@ -79,17 +79,6 @@ export default function EVPage() {
   return (
     <div className="relative p-4 md:p-8 pb-32 max-w-3xl mx-auto space-y-6">
       <div className="absolute top-0 right-0 -z-10 w-96 h-96 bg-sky-100/60 rounded-full blur-3xl opacity-60 -mr-24 -mt-24" />
-      <div>
-        <h1 className="text-2xl md:text-3xl font-black tracking-tight flex items-center gap-3 text-slate-900">
-          <span className="w-10 h-10 rounded-2xl bg-gradient-to-br from-sky-400 to-cyan-500 flex items-center justify-center shadow-lg shadow-sky-500/20">
-            <Scale className="w-5 h-5 text-white" />
-          </span>
-          期望值（EV）计算器
-        </h1>
-        <p className="text-slate-500 mt-2 text-sm">
-          按奖池、销量与税费估算每注 {rules.ticketCost} 元的理论回报。规则版本 {rules.version}。
-        </p>
-      </div>
 
       <section className="bg-white/80 backdrop-blur-xl border border-white rounded-3xl shadow-xl p-5 space-y-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
